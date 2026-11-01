@@ -17,6 +17,7 @@ LegWeaver と同等のツールを作る人、LegWeaver を保守・改造する
 | [algorithm_editor.md](algorithm_editor.md) | 詳細設計: エディター拡張（C#）と Blender 内の処理（Python） |
 | [algorithm_shader_runtime.md](algorithm_shader_runtime.md) | 詳細設計: シェーダーと実行時の部品 |
 | [uml/](uml/design_uml.md) | UML の図（PlantUML の元の文 `.puml` と、書き出した `.png`） |
+| [development/](development/README.md) | 開発体制（誰が何を担当したか、改良の回り方）。同じ体制で開発したい人向け |
 
 どの文書も、コードを写さず、働き・取り決め・数値の仕様を書いています。コードの文言は含みません。
 
@@ -30,4 +31,4 @@ LegWeaver と同等のツールを作る人、LegWeaver を保守・改造する
 
 ## 図の書き出し
 
-`.png` は、`uml/` の `.puml` を PlantUML（レイアウトは内蔵の smetana）で書き出した物です。
+`.png` は、`uml/` と `development/` の `.puml` を PlantUML（レイアウトは内蔵の smetana）で書き出した物です。

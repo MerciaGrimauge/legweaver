@@ -1,0 +1,36 @@
+' SPDX-FileCopyrightText: 2026 MerciaGrimauge
+' SPDX-License-Identifier: 0BSD OR MIT-0
+@startuml structure
+' LegWeaver の開発体制。説明は同じフォルダの README.md。
+' O = Claude Opus 5.5、F = Claude Fable 5.1、S = Claude Sonnet 5.5。
+left to right direction
+skinparam shadowing false
+skinparam defaultFontName "Yu Gothic UI"
+
+actor "作者（ユーザー）\n方針・判断・公開の許可" as User
+
+rectangle "Claude Code デスクトップ" {
+  component "O A: メイン（Opus 5.5）\n実装・確認・文書・コミット\n公開候補の作成" as OA
+  component "O B: 別セッション（Opus 5.5）\n写真だけで見た目を判定" as OB
+  component "O C: 別セッション（Opus 5.5）\nリリース用の道具の把握" as OC
+}
+
+rectangle "サブエージェント（毎回、経緯を知らない新しい物）" {
+  component "F: Fable\n本来の色の写真で見た目を 3 段階で判定\n設計書の書き起こし・公開前の最終チェック" as F
+  component "O: Opus\n独立監査・漏洩監査\n写真の破綻チェック・性能調査" as OS
+  component "S: Sonnet\n実物のタイツの構造などの調査" as S
+  component "既定のモデル\nコメントの翻訳・市場調査\n公開候補の独立監査" as D
+}
+
+
+User --> OA : 依頼・判断
+OA --> User : 報告・確認
+OA ..> OB : 依頼（別のセッションへ送る）
+OA ..> OC : 依頼（別のセッションへ送る）
+OA --> F : 写真を渡して判定を依頼
+OA --> OS : 対象と制約だけを渡す
+OA --> S
+OA --> D
+F ..> OA : 判定と直す順
+OS ..> OA : 指摘（値は伏せる）
+@enduml

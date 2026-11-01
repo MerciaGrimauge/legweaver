@@ -1,0 +1,23 @@
+version = 1
+
+# このフォルダのファイルのライセンス（コメントを書けない物: Unity の .meta、.asmdef、文書）。自分の SPDX ヘッダーを
+# 持つファイルはそれに従う。LICENSE.md を参照。後に書いた項目が前の項目より優先する。
+
+[[annotations]]
+path = "**"
+precedence = "closest"
+SPDX-FileCopyrightText = "2026 MerciaGrimauge"
+SPDX-License-Identifier = "GPL-3.0-or-later"
+
+[[annotations]]
+path = ["Shaders/**", "Runtime/**", "Shaders.meta", "Runtime.meta"]
+precedence = "closest"
+SPDX-FileCopyrightText = "2026 MerciaGrimauge"
+SPDX-License-Identifier = "MIT"
+
+# 外部設計書（処理の説明書）は 0BSD と MIT-0 のどちらかを選べる
+[[annotations]]
+path = ["ALGORITHM.md", "ALGORITHM.md.meta"]
+precedence = "closest"
+SPDX-FileCopyrightText = "2026 MerciaGrimauge"
+SPDX-License-Identifier = "0BSD OR MIT-0"

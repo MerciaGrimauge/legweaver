@@ -1,0 +1,13 @@
+// SPDX-FileCopyrightText: 2026 MerciaGrimauge
+// SPDX-FileCopyrightText: 2020-present lilxyzw (the lilToon custom shader template this file follows)
+// SPDX-License-Identifier: MIT
+
+Shader "Hidden/*LIL_SHADER_NAME*/ltspass_transparent"
+{
+    HLSLINCLUDE
+        #define LIL_RENDER 2
+        #include "custom.hlsl"
+    ENDHLSL
+
+    lilSubShaderBRP "Default"
+}

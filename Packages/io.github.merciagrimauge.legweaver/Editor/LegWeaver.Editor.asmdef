@@ -1,0 +1,39 @@
+{
+    "name": "LegWeaver.Editor",
+    "rootNamespace": "LegWeaver",
+    "references": [
+        "com.anatawa12.avatar-optimizer.runtime",
+        "nadena.dev.modular-avatar.core",
+        "nadena.dev.modular-avatar.core.editor",
+        "nadena.dev.ndmf",
+        "LegWeaver.Runtime",
+        "lilToon.Editor"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": [],
+    "versionDefines": [
+        {
+            "name": "com.anatawa12.avatar-optimizer",
+            "expression": "1.8.0",
+            "define": "LW_AAO"
+        },
+        {
+            "name": "nadena.dev.modular-avatar",
+            "expression": "1.9.0",
+            "define": "LW_MA"
+        },
+        {
+            "name": "jp.lilxyzw.liltoon",
+            "expression": "1.7.0",
+            "define": "LW_LILTOON"
+        }
+    ],
+    "noEngineReferences": false
+}

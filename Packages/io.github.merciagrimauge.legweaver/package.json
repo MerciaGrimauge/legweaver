@@ -1,0 +1,21 @@
+{
+  "name": "io.github.merciagrimauge.legweaver",
+  "version": "2.0.0",
+  "displayName": "LegWeaver",
+  "description": "Generates tights, socks, gloves and arm covers fitted to a VRChat avatar's body, using Blender.",
+  "unity": "2022.3",
+  "author": {
+    "email": "218344561+MerciaGrimauge@users.noreply.github.com",
+    "url": "https://github.com/MerciaGrimauge",
+    "name": "マーシア・グリマージ"
+  },
+  "license": "GPL-3.0-or-later AND MIT AND (0BSD OR MIT-0)",
+  "url": "https://github.com/MerciaGrimauge/legweaver/releases/download/v2.0.0/io.github.merciagrimauge.legweaver-2.0.0.zip",
+  "documentationUrl": "https://github.com/MerciaGrimauge/legweaver/tree/main/Packages/io.github.merciagrimauge.legweaver",
+  "vpmDependencies": {
+    "com.vrchat.avatars": ">=3.10.5 <3.11.0",
+    "nadena.dev.ndmf": ">=1.14.8 <2.0.0",
+    "jp.lilxyzw.liltoon": ">=2.4.1 <3.0.0",
+    "nadena.dev.modular-avatar": ">=1.18.7 <2.0.0"
+  }
+}

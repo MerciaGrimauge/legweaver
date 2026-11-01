@@ -1,0 +1,10 @@
+version = 1
+
+# リポジトリの直下のファイルのライセンス。パッケージの中は Packages/io.github.merciagrimauge.legweaver/REUSE.toml と
+# LICENSE.md を参照。
+
+[[annotations]]
+path = ["README.md", "REUSE.toml", ".editorconfig", ".gitattributes"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 MerciaGrimauge"
+SPDX-License-Identifier = "GPL-3.0-or-later"

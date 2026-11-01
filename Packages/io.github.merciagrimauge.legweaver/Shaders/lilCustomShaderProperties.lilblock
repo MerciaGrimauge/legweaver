@@ -1,0 +1,6 @@
+        // SPDX-FileCopyrightText: 2026 MerciaGrimauge
+        // SPDX-FileCopyrightText: 2020-present lilxyzw (the lilToon custom shader template this file follows)
+        // SPDX-License-Identifier: MIT
+        //----------------------------------------------------------------------------------------------------------------------
+        // LegWeaver: 今のポーズで生地が伸びているところほど透ける
+        [HideInInspector]                               _LWDynamicStretch       ("Dynamic Stretch", Range(0, 2)) = 1

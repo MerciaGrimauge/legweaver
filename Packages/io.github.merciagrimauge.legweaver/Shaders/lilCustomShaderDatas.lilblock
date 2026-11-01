@@ -1,0 +1,6 @@
+// SPDX-FileCopyrightText: 2026 MerciaGrimauge
+// SPDX-FileCopyrightText: 2020-present lilxyzw (the lilToon custom shader template this file follows)
+// SPDX-License-Identifier: MIT
+ShaderName "LegWeaver"
+EditorName "lilToon.lilToonInspector"
+InsertUsePassPre "lw_prez.lilblock"

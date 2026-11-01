@@ -4,6 +4,16 @@ VRChat アバターの体に合わせて、タイツ・ソックス・手袋・�
 
 パッケージ ID は `io.github.merciagrimauge.legweaver` です。使い方・必要なもの・仕組みは[パッケージの README](Packages/io.github.merciagrimauge.legweaver/README.md) を参照してください。処理の詳しい説明（[ALGORITHM.md](Design/ALGORITHM.md)）と、同等のツールを作る人・保守する人のための設計書・UML の図は、パッケージとは別に [Design/](Design/README.md) にあります。
 
+**ライセンスは部分ごとに違います。全部が GPL ではありません。**
+
+| 部分 | ライセンス | 全文 |
+|---|---|---|
+| エディタ拡張（`Editor/`。Blender の中で動く処理を含む） | GPL-3.0-or-later | [LICENSE-GPL](LICENSE-GPL) |
+| アバターに入るシェーダー（`Shaders/`）と実行時の部品（`Runtime/`） | MIT | [LICENSE-MIT](LICENSE-MIT) |
+| 設計書（`Design/`） | 0BSD と MIT-0 のどちらかを選べる | [LICENSE-0BSD](LICENSE-0BSD)、[LICENSE-MIT-0](LICENSE-MIT-0) |
+
+生成した衣類と、それを含むアバターは GPL の対象になりません。詳しくは下の「ライセンス」を見てください。
+
 ## 導入
 
 ALCOM に VPM リポジトリ `https://merciagrimauge.github.io/vpm-repository/index.json` を追加し、プロジェクトに LegWeaver を追加します。依存する VRChat SDK（Avatars）・NDMF・lilToon・Modular Avatar は一緒に入ります。Avatar Optimizer は任意で、入っていれば不透明な衣類の下の肌の削除に使います。
@@ -16,4 +26,4 @@ Unity 2022.3 向けです。Unity 6 では確認していません。対応 OS �
 
 ## ライセンス
 
-エディタ拡張（`Editor/`）は GPL-3.0-or-later、アバターに入るシェーダー（`Shaders/`）と実行時の部品（`Runtime/`）は MIT、`Design/` の設計書は 0BSD と MIT-0 のどちらかを選べます。直下の `LICENSE` は、ツールの本体（エディタ拡張）の GPL の全文です。生成した衣類と、それを含むアバターは GPL の対象になりません。詳しくは [LICENSE.md](Packages/io.github.merciagrimauge.legweaver/LICENSE.md) を参照してください。本ソフトウェアは現状のまま提供します。VRChat SDK・NDMF・lilToon・Modular Avatar・Avatar Optimizer・Blender は同梱していません。
+エディタ拡張（`Editor/`）は GPL-3.0-or-later、アバターに入るシェーダー（`Shaders/`）と実行時の部品（`Runtime/`）は MIT、`Design/` の設計書は 0BSD と MIT-0 のどちらかを選べます。直下の `LICENSE-GPL`・`LICENSE-MIT`・`LICENSE-0BSD`・`LICENSE-MIT-0` は、それぞれのライセンスの全文です（どれか 1 つが全体のライセンスという意味ではありません）。生成した衣類と、それを含むアバターは GPL の対象になりません。詳しくは [LICENSE.md](Packages/io.github.merciagrimauge.legweaver/LICENSE.md) を参照してください。本ソフトウェアは現状のまま提供します。VRChat SDK・NDMF・lilToon・Modular Avatar・Avatar Optimizer・Blender は同梱していません。

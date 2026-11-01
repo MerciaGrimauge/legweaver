@@ -1,0 +1,123 @@
+' SPDX-FileCopyrightText: 2026 MerciaGrimauge
+' SPDX-License-Identifier: 0BSD OR MIT-0
+@startuml overall_components
+' LegWeaver 全体の構成（コンポーネント図）
+' エディター拡張・Blender の処理・実行時の部品・シェーダーと、外部の依存の関係を表す。
+
+title LegWeaver 全体の構成
+
+skinparam componentStyle rectangle
+skinparam shadowing false
+skinparam wrapWidth 220
+
+package "Unity エディター（LegWeaver.Editor。GPL）" as editor {
+  [ウィンドウ\n（LegWeaverWindow）] as win
+  [生成の司令塔\n（GarmentGenerator）] as gen
+  [体の解析\nAvatarBody / BodyFinder /\nBodyCoverage / SkinColor / ShrinkShapes] as body
+  [衣装の検出\nUnderLayers / UnderSurface] as under
+  [受け渡しの書き出し\n（BlenderJob）] as job
+  [Blender の実行と版の確認\nBlenderRunner / BlenderSupport] as runner
+  [メッシュの組み立て\n（GarmentMeshBuilder）] as builder
+  [見た目\nGarmentMaterial / Denier /\nGarmentFinish / LegPattern] as mat
+  [取り付けと後処理\nGarmentInstaller / SkinRemover /\nPoseStretch / SwingTails] as install
+  [包む衣装\n（WrapGarment）] as wrap
+  [ビルド時の処理\nSkinFollowPlugin / SkinFollowPreview] as plugin
+}
+
+node "Blender 5 系（外部プログラム）" as blender_exe {
+package "Blender の処理（Editor/Blender。GPL）" as blender {
+  [入口と 7 段の流れ\n（legweaver.py）] as py_main
+  [共通の補助\n（lw_common）] as py_common
+  [表面と包絡面\n（lw_surface）] as py_surface
+  [つま先\n（lw_toes）] as py_toes
+  [部位・脚の座標・伸び\n（lw_regions）] as py_regions
+  [腕の衣装\n（lw_arms）] as py_arms
+  [下に着る物\n（lw_under）] as py_under
+  [しわ・リボン\nlw_options / lw_bow] as py_extra
+}
+}
+
+package "実行時の部品（LegWeaver.Runtime。MIT）" as runtime {
+  [肌の追従データ\n（SkinFollow）] as follow
+}
+
+package "シェーダー（Shaders。MIT）" as shaders {
+  [姿勢に応じた透け\n（LegWeaver/Transparent）] as shader
+}
+
+folder "作業フォルダ（Temp の下）" as work {
+  artifact "job.json\ninput.bin\nunder.bin" as inputs
+  artifact "output.bin\noutput.json" as outputs
+}
+
+folder "生成物（Assets/LegWeaver_Output）" as out {
+  artifact "メッシュ・マテリアル・\nテクスチャ・肌の写し" as assets
+}
+
+package "Unity 側の外部の依存" as ext {
+  [VRChat SDK\n（Avatars）] as vrc
+  [NDMF] as ndmf
+  [Modular Avatar] as ma
+  [lilToon] as lil
+  [Avatar Optimizer\n（任意）] as aao
+}
+
+' エディターの中の流れ
+win --> gen : 設定の写しを渡して開始／完了の取り込み
+gen --> body : 体を読む・警告の材料
+gen --> under : 下に着る物・上に着る物を見分ける
+gen --> job : 書き出す
+gen --> runner : 版を確かめ、起動し、見守る
+gen --> builder : 結果から組み立てる
+gen --> mat : 部位ごとのマテリアル
+gen --> install : 取り付け・肌の削除・姿勢のデータ
+gen --> wrap : 「包む」だけ（Blender を使わない）
+win ..> runner : 場所・打ち切り時間の設定、ログの表示
+
+' 受け渡し
+job --> inputs : 書く
+runner --> py_main : Blender をバックグラウンドで起動し\n同梱の Python を実行（通信はしない）
+py_main --> inputs : 読む
+py_main --> outputs : 書く
+builder --> outputs : 読む
+py_main ..> py_common
+py_main ..> py_surface
+py_main ..> py_toes
+py_main ..> py_regions
+py_main ..> py_arms
+py_main ..> py_under
+py_main ..> py_extra
+
+' 生成物とアバター
+builder --> assets
+mat --> assets
+install --> follow : 必要なときだけ部品を付ける
+mat --> shader : 透ける衣装のマテリアルが使う
+mat ..> lil : 土台のシェーダーと設定
+install ..> ma : 衣装の結線・シェイプキーの同期
+install ..> aao : 隠れる肌を消す箱
+install ..> vrc : リボンの垂れの揺れ物
+plugin ..> ndmf : ビルド時の段階とプレビュー
+plugin --> follow : ビルド時に読み取り、適用して取り除く
+runtime ..> vrc : エディター専用の印
+shader ..> lil : カスタムシェーダーの仕組みの上に乗る
+
+' 配置の手がかり（線は描かない）
+editor -[hidden]down- work
+work -[hidden]right- blender_exe
+runtime -[hidden]right- shaders
+runtime -[hidden]down- ext
+
+note as note_editor
+  エディター拡張は Modular Avatar・Avatar Optimizer・lilToon の
+  有無を版の定義で見分け、無い物の機能は黙って省く。
+end note
+gen .. note_editor
+
+note as note_blender
+  Blender 側の計算は体のメッシュの単位で行う。
+  実寸は job.json の「1 単位あたりのメートル」で換算する。
+end note
+py_main .. note_blender
+
+@enduml

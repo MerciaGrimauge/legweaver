@@ -10,17 +10,19 @@ the authoritative one; the Japanese text is a translation.
 |---|---|---|
 | `Shaders/` (everything in it) | **MIT** | `Shaders/LICENSE.txt`, `LICENSES/MIT.txt` |
 | `Runtime/` (everything in it) | **MIT** | `Runtime/LICENSE.txt`, `LICENSES/MIT.txt` |
-| `ALGORITHM.md` (the external design document) | **0BSD OR MIT-0** (your choice) | `LICENSES/0BSD.txt`, `LICENSES/MIT-0.txt` |
 | everything else (`Editor/` including `Editor/Blender/`, `README.md`) | **GPL-3.0-or-later** | `LICENSES/GPL-3.0-or-later.txt` |
+
+The design documents (`ALGORITHM.md` and the other documents and UML diagrams for people who build or maintain an
+equivalent tool) are not part of this package. They are in the `Design/` folder at the root of the source repository,
+under the **0BSD OR MIT-0** License (your choice); see `Design/README.md` there.
 
 ## What this means
 
-1. **The MIT, 0BSD and MIT-0 parts are not GPL.** `Shaders/` and `Runtime/` are licensed under the MIT License
-   only, and `ALGORITHM.md` under the 0BSD or MIT-0 License at your choice; none of them is licensed under the GPL. Being
+1. **The MIT parts are MIT only.** `Shaders/` and `Runtime/` are not licensed under the GPL. Being
    distributed in the same package or repository as the GPL parts does not change that: they are separate works
    placed side by side (an "aggregate", GPLv3 section 5), not a work based on the GPL parts. Anyone may use them under
-   their own license alone, including in closed-source or commercial works. `ALGORITHM.md` may be used without any
-   copyright notice or attribution.
+   the MIT License alone, including in closed-source or commercial works. The same holds for the design documents in
+   `Design/` under their own license, which may be used without any copyright notice or attribution.
 2. **What the tool makes is yours, not GPL.** The meshes, textures, materials, prefabs and component settings that
    LegWeaver generates from your avatar are its output. They are not covered by this tool's licenses (in
    particular not by the GPL); they remain subject only to the terms of the avatar and assets you made them from.
@@ -49,16 +51,18 @@ LegWeaver は、**異なるライセンス**の部分からできています。
 |---|---|---|
 | `Shaders/`（中のすべて） | **MIT** | `Shaders/LICENSE.txt`、`LICENSES/MIT.txt` |
 | `Runtime/`（中のすべて） | **MIT** | `Runtime/LICENSE.txt`、`LICENSES/MIT.txt` |
-| `ALGORITHM.md`（外部設計書） | **0BSD または MIT-0**（どちらかを選べる） | `LICENSES/0BSD.txt`、`LICENSES/MIT-0.txt` |
 | それ以外のすべて（`Editor/`。`Editor/Blender/` を含む。`README.md`） | **GPL-3.0-or-later** | `LICENSES/GPL-3.0-or-later.txt` |
+
+設計書（`ALGORITHM.md` と、同等のツールを作る人・保守する人のためのほかの文書・UML の図）は、このパッケージに
+含まれません。ソースのリポジトリの直下の `Design/` フォルダにあり、**0BSD または MIT-0**（どちらかを選べる）です。
+そこの `Design/README.md` を見てください。
 
 ### 意味するところ
 
-1. **MIT・0BSD・MIT-0 の部分は GPL ではありません。** `Shaders/`・`Runtime/` は MIT だけ、`ALGORITHM.md` は
-   0BSD と MIT-0 のどちらかを選べるライセンスで、どれも GPL ではありません。GPL の部分と
+1. **MIT の部分は MIT だけです。** `Shaders/`・`Runtime/` は GPL ではありません。GPL の部分と
    同じパッケージやリポジトリで配布されていても変わりません。並べて置かれた別々の著作物（GPLv3 第 5 条の「集積物」）で
-   あって、GPL の部分に基づく著作物ではありません。誰でもそれぞれのライセンスだけに従って使えます（非公開・商用の作品を含む）。`ALGORITHM.md` は
-   著作権の表示や出典の記載なしで使えます。
+   あって、GPL の部分に基づく著作物ではありません。誰でも MIT ライセンスだけに従って使えます（非公開・商用の作品を含む）。
+   `Design/` の設計書も同じく、それ自身のライセンスだけに従い、著作権の表示や出典の記載なしで使えます。
 2. **このツールが作った物はあなたの物で、GPL ではありません。** LegWeaver がアバターから生成するメッシュ・
    テクスチャ・マテリアル・プレハブ・コンポーネントの設定は、このツールの出力です。このツールのライセンス（特に GPL）の
    対象ではなく、元にしたアバターや素材の規約だけに従います。

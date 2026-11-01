@@ -1,0 +1,114 @@
+' SPDX-FileCopyrightText: 2026 MerciaGrimauge
+' SPDX-License-Identifier: 0BSD OR MIT-0
+@startuml unity_blender_sequence
+' LegWeaver Unity と Blender のやり取り（シーケンス図）
+' ジョブの書き出し、Blender の起動、見守りと打ち切り、結果の読み込み、作業フォルダの片付けを表す。
+
+title Unity と Blender のやり取り
+
+skinparam shadowing false
+skinparam wrapWidth 240
+
+actor 利用者 as user
+participant "ウィンドウ\n（LegWeaverWindow）" as win
+participant "司令塔\n（GarmentGenerator）" as gen
+participant "受け渡し\n（BlenderJob）" as job
+participant "版の確認\n（BlenderSupport）" as support
+participant "実行\n（BlenderRunner）" as runner
+participant "Blender\n（外部プロセス）" as blender
+participant "組み立て\n（GarmentMeshBuilder）" as builder
+database "作業フォルダ\n（Temp の下）" as work
+
+user -> win : 「生成」
+activate win
+win -> gen : 開始（アバター、ボディ、設定の写し、重ねる物の選択）
+activate gen
+gen -> gen : Humanoid・所属の確認、体の読み取り、\n衣装の検出、シュリンク形状を 0 に
+gen -> work : 作業フォルダを作る\n（日時＋乱数の名前）
+gen -> job : 書き出す
+activate job
+job -> work : input.bin（体の配列）
+job -> work : under.bin（下に着る物の面）
+job -> work : job.json（件数、単位、ファイルの場所、\n目印、足の指の番号、衣装の設定）
+deactivate job
+gen -> support : Blender の場所を渡して判定
+activate support
+support -> support : 版のフォルダ名と同梱 Python の\nDLL 名から版を読み、内蔵の表と照らす
+support --> gen : 可／警告／不可（理由の文）
+deactivate support
+
+alt 不可
+  gen -> work : 作業フォルダを消す
+  gen --> win : 例外（理由）
+  win -> user : 「開始できませんでした」
+else 可／警告
+  gen -> runner : 起動（Blender の場所、スクリプトの場所、job.json、打ち切り時間）
+  activate runner
+  runner -> blender : バックグラウンドで起動\n（工場出荷の設定、スクリプト、job.json）
+  activate blender
+  runner -> runner : 標準出力・標準エラーを\n別スレッドで受け、待ち行列へ
+  gen --> win : 生成の手がかり（ランナー）
+  deactivate gen
+  win -> win : エディターの更新ごとの見守りを登録
+  deactivate win
+
+  loop エディターの更新ごと
+    win -> runner : 出力をログへ移す
+    runner --> win : 最新の進み具合（印の付いた行）
+    win -> runner : 動いているか
+    alt 終了していた
+      runner -> runner : 出力を読み終えるまで待ち、終了コードを控える
+      runner --> win : いいえ
+    else 打ち切り時間を超えた
+      runner -> blender : 強制終了
+      runner -> runner : 時間切れの印
+      runner --> win : いいえ
+    else 動いている
+      runner --> win : はい（表示を更新して次の更新へ）
+    end
+  end
+
+  blender -> work : job.json・input.bin・under.bin を読む
+  blender -> blender : 7 段の生成（進み具合をログに出す）
+  blender -> work : output.bin・output.json\n（成否・エラー文・件数・品質の報告）
+  deactivate blender
+
+  opt 利用者がキャンセル、またはウィンドウを閉じた
+    user -> win : キャンセル
+    win -> runner : 強制終了
+    win -> gen : 作業フォルダを消す
+    gen -> work : 消す（開いたままの物は Unity の終了に任せる）
+  end
+
+  win -> gen : 完了処理
+  activate gen
+  alt 時間切れ
+    gen --> win : 例外（打ち切り時間を延ばす案内）
+  else output.json が無い
+    gen --> win : 例外（終了コードとログの確認の案内）
+  else 結果が失敗
+    gen -> builder : output.json を読む
+    builder --> gen : 失敗とエラー文
+    gen --> win : 例外（エラー文）
+  else 成功
+    gen -> builder : output.json を読む
+    builder --> gen : 件数・品質・揺れの情報
+    gen -> builder : output.bin からメッシュを組み立てる
+    builder -> work : output.bin を読む\n（大きさが件数と合わなければ失敗）
+    builder --> gen : メッシュ・部位・同期するシェイプキー
+    gen -> gen : マテリアル、肌の写し、取り付け、\n姿勢のデータ、揺れ物、肌の削除
+    gen --> win : 結果の要約
+  end
+  gen -> work : 作業フォルダを消す（成功・失敗のどちらでも）
+  deactivate gen
+  deactivate runner
+  win -> user : 結果、または失敗の理由とログ
+end
+
+note over work
+  作業フォルダには体の生のメッシュが入る。
+  成功・失敗・キャンセル・ウィンドウを閉じた時・
+  開始の途中で止まった時のどれでも消す。
+end note
+
+@enduml

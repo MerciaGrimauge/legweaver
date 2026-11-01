@@ -1,0 +1,55 @@
+' SPDX-FileCopyrightText: 2026 MerciaGrimauge
+' SPDX-License-Identifier: 0BSD OR MIT-0
+@startuml generation_states
+' LegWeaver 生成の 1 回の状態の移り変わり（状態図）
+' ウィンドウから見た 1 回の生成の状態。待機・準備・実行中・組み立て・完了・失敗・キャンセルを表す。
+
+title 生成の 1 回の状態
+
+skinparam shadowing false
+skinparam wrapWidth 240
+
+[*] --> idle
+
+state "待機" as idle : 設定を編集できる\n「生成」はアバターがあり、\nBlender が使える判定のときだけ押せる\n（「包む」は Blender 不要）
+
+state "準備中" as preparing : Humanoid・所属の確認、体の読み取り、\n衣装の検出、作業フォルダへの書き出し、\n版の確認（同期処理。画面は止まる）
+
+state "Blender 実行中" as running {
+  state "見守り" as polling : 更新ごとにログを移し、\n経過時間と進み具合を表示する\n設定の区画は無効
+  polling --> polling : 動いている
+}
+
+state "組み立て中" as assembling : 結果の読み込み、メッシュ、\nマテリアル、取り付け、肌の削除\n（同期処理）
+
+state "完了" as done : 結果の要約を表示し、\n生成物を選択して示す\n作業フォルダは消えている
+
+state "失敗" as failed : 理由を表示し、ログを開く\n作業フォルダは消えている
+
+state "キャンセル" as cancelled : Blender を止めた\n作業フォルダは消えている
+
+idle --> preparing : 「生成」
+preparing --> failed : 例外（Humanoid でない、ボディ無し、\n版が不可、所属が違う…）\n作業フォルダを消す
+preparing --> running : Blender を起動
+preparing --> assembling : 種類が「包む」\n（Blender を起動しないランナー）
+running --> assembling : Blender が終了（出力を読み終える）
+running --> assembling : 打ち切り時間を超過\n（止めて時間切れの印）
+running --> cancelled : 「キャンセル」／ウィンドウを閉じる
+assembling --> done : 成功
+assembling --> failed : 時間切れ／結果なし／結果が失敗／\n組み立ての例外
+done --> idle : 見つけた候補を探し直す
+failed --> idle
+cancelled --> idle
+
+note right of running
+  時間切れは「実行中」から直接「失敗」へ行かず、
+  組み立ての入口で時間切れの印を見て失敗と判定する。
+  ログは末尾だけ画面に出す（保持にも上限がある）。
+end note
+
+note bottom of failed
+  Blender を止めた直後で消せない作業フォルダは、
+  Unity の終了時に一時フォルダごと消えるのに任せる。
+end note
+
+@enduml

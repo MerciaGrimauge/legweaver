@@ -1,0 +1,143 @@
+' SPDX-FileCopyrightText: 2026 MerciaGrimauge
+' SPDX-License-Identifier: 0BSD OR MIT-0
+@startuml classes_detail
+' LegWeaver 主なクラスと責務 その 2（クラス図）: 体の解析・衣装の検出・組み立てと見た目・取り付けと後処理・ビルド時
+' 画面・設定・生成の流れのクラスは、その 1（04a）にある。ここでは中身を省いて名前だけ置く。
+
+title 主なクラスと責務 その 2: 体・衣装・組み立て・取り付け・ビルド時
+
+skinparam shadowing false
+skinparam classAttributeIconSize 0
+skinparam wrapWidth 240
+hide empty members
+
+class GarmentGenerator <<その 1>>
+class Denier <<その 1>>
+class GarmentFinish <<その 1>>
+
+package "体の解析" {
+  class AvatarBody {
+    + ルート、Animator、レンダラー、メッシュ
+    + 頂点・法線・UV・三角形（バインド空間）
+    + 脚ウェイト、関節の混ざり、足の指の番号
+    + 目印（Humanoid の骨のメッシュ空間での位置）
+    + 1 単位あたりのメートル
+    + 下に着る物の高さ・有無・面・ウェイト
+    + 上に着る物の天井
+    --
+    + Humanoid を見つける
+    + 体を読む（骨の読み替えを含む）
+  }
+  class BodyFinder <<static>> {
+    + 体の候補を良い順に並べる
+    + アーマチュアを求める
+    + レンダラーの骨 → アバターの骨（MA の統合の規則）
+  }
+  class BodyCoverage <<static>> {
+    + 脚の肌がどこからどこまであるか
+  }
+  class SkinColor <<static>> {
+    + 脚の肌の平均色（裏地用）
+    + 脚とほかの肌の色の差（描かれた脚の警告）
+  }
+  class ShrinkShapes <<static>> {
+    + 形から縮めるシェイプキーを見分けて 0 にする
+  }
+  class MeshMath <<static>> {
+    + スキン後の位置、三角形上の最近点、重心座標、隣接
+  }
+}
+
+package "衣装の検出" {
+  class UnderLayers <<static>> {
+    + 肌に沿って着ている物を見分ける（下着／スパッツ／その他）
+    + 下着の高さ・有無・芯の範囲
+    + 上に着る物の天井
+    + 点での下着のウェイト、骨の対応
+  }
+  class UnderSurface <<static>> {
+    + 下着の面を体のメッシュ空間で組み立て直す
+  }
+}
+
+package "組み立てと見た目" {
+  class GarmentMeshBuilder {
+    + メッシュ、覆いの深さ、同期するシェイプキー、部位
+    + 肌の写しのメッシュとマテリアルの割り当て
+    --
+    + 結果を読む（output.json）
+    + 組み立てる（ウェイト・シェイプキー・UV・サブメッシュ）
+    + 肌の写しを作る
+  }
+  class BlenderResult {
+    + 成否、エラー文、件数、覆った頂点数、揺れの情報
+  }
+  class GarmentMaterial <<static>> {
+    + 部位ごとの lilToon マテリアル
+    + 角度の透け・伸びのランプ・柄のテクスチャ
+    + 肌の写し用のマテリアルの写し
+    + カスタムシェーダーの取得
+  }
+  class LegPattern <<static>> {
+    + 脚の座標で描く柄・伝線・境目の飾りのテクスチャ
+  }
+}
+
+package "取り付けと後処理" {
+  class GarmentInstaller <<static>> {
+    + 骨の写しとレンダラーを置き、MA で結線
+    + シェイプキーの同期
+    + 肌を消す箱の部品を付ける（AAO）
+    + 肌の追従データを付ける
+  }
+  class SkinRemover <<static>> {
+    + 覆われた肌を囲む箱を合わせる（脚に沿った薄切りと補い）
+  }
+  class PoseStretch <<static>> {
+    + 脚を曲げて伸びの係数を測り、接線と UV3 に入れる
+  }
+  class SwingTails <<static>> {
+    + 垂れに骨を連ね、揺れ物を付ける
+  }
+}
+
+package "ビルド時" {
+  class SkinFollowPlugin <<NDMF Plugin>> {
+    + 変形の段階で追従データを体のメッシュの写しに適用し、部品を取り除く
+    + データの整合を確かめる
+  }
+  class SkinFollowPreview <<IRenderFilter>> {
+    + エディター上で同じ結果を見せる
+  }
+}
+
+' 関係（司令塔から各部へ）
+GarmentGenerator o-- AvatarBody
+GarmentGenerator ..> ShrinkShapes
+GarmentGenerator ..> UnderLayers
+GarmentGenerator ..> UnderSurface
+GarmentGenerator ..> GarmentMeshBuilder
+GarmentGenerator ..> GarmentMaterial
+GarmentGenerator ..> GarmentInstaller
+GarmentGenerator ..> SkinRemover
+GarmentGenerator ..> PoseStretch
+GarmentGenerator ..> SwingTails
+
+' 関係（各部の間）
+AvatarBody ..> BodyFinder : 候補・骨の読み替え
+GarmentMeshBuilder ..> BlenderResult
+GarmentMeshBuilder ..> MeshMath
+GarmentMeshBuilder ..> UnderLayers : 下着のウェイトへ寄せる
+GarmentMaterial ..> Denier
+GarmentMaterial ..> GarmentFinish
+GarmentMaterial ..> LegPattern
+GarmentMaterial ..> SkinColor : 裏地の色
+GarmentInstaller ..> BodyFinder : アーマチュアと骨の対応
+UnderLayers ..> MeshMath
+SkinRemover ..> MeshMath
+SkinFollowPreview ..> SkinFollowPlugin : 同じ適用の処理を使う
+
+note "ビルド時のクラスは生成とは別に動く。\nGarmentInstaller が付けた肌の追従データを、\nアップロードのビルドで読み取って適用する。" as N1
+N1 .. SkinFollowPlugin
+
+@enduml

@@ -34,6 +34,7 @@ Unity エディタ拡張です。VRChat アバターの下半身に合わせて�
 
 ## 必要なもの
 
+- Windows。Blender を自動で探す処理が Windows 向けで、macOS・Linux では動作を確認していません（対応しません）。
 - Blender 5.x 以降（インストール版。確認済み: 5.2）。Windows に記録されたインストール済みプログラムの情報（アンインストール情報）から自動で探し、見つからなければ `C:\Program Files\Blender Foundation\`（と `C:\Program Files (x86)\Blender Foundation\`）の下を探します。見つからないときは、インストールするか、ポータブル版（zip を展開したもの）の `blender.exe` を指定してください。
   ポータブル版などはウィンドウで blender.exe の場所を指定すると使えます。生成は Blender に同梱の Python で動きます。
   **Blender 4.x 以前には対応しません。** 生成は Blender 5.0 で入ったジオメトリーノード（Mesh to SDF Grid、SDF Grid Offset、
@@ -351,9 +352,9 @@ Copyright (c) 2026 MerciaGrimauge。部分ごとにライセンスが異なり�
 | 場所 | ライセンス |
 |---|---|
 | `Shaders/`・`Runtime/` | MIT（GPL ではありません） |
-| `ALGORITHM.md`（外部設計書） | 0BSD と MIT-0 のどちらかを選べます（表示も出典も要りません） |
 | それ以外（`Editor/` など） | GPL-3.0-or-later |
 
 - このツールが生成したメッシュ・テクスチャ・マテリアルなどは利用者の物で、GPL の対象ではありません。
 - 生成した衣類を使ったアバターをアップロード・配布・販売しても、そのアバターを GPL にする必要はありません（アバターに入るのは MIT の部分だけです）。
+- 処理の説明（`ALGORITHM.md`）などの設計書は、このパッケージには入っていません。ソースのリポジトリの `Design/`（https://github.com/MerciaGrimauge/legweaver/tree/main/Design）にあり、0BSD と MIT-0 のどちらかを選べます（表示も出典も要りません）。
 - 各ファイルのライセンスは、先頭の `SPDX-License-Identifier` で示しています。コメントを書けないファイル（`.meta`・`.asmdef`・`package.json`・文書など）は `REUSE.toml` で示しています。

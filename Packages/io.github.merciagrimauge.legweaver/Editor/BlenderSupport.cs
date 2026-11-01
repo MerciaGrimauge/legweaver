@@ -27,7 +27,7 @@ namespace LegWeaver
 
         /// <summary>
         /// Blender: 各リリースは次のリリースまで、LTS は 2 年間サポートされる
-        /// （developer.blender.org/docs/release_notes, blender.org/download/lts, 2026-10-27 に確認）。
+        /// （developer.blender.org/docs/release_notes, blender.org/download/lts）。
         /// </summary>
         static readonly Dictionary<Version, (DateTime end, string note)> BlenderEnds = new()
         {

@@ -1,0 +1,110 @@
+' SPDX-FileCopyrightText: 2026 MerciaGrimauge
+' SPDX-License-Identifier: 0BSD OR MIT-0
+@startuml classes_control
+' LegWeaver 主なクラスと責務 その 1（クラス図）: 画面・設定・生成の流れ
+' 体の解析・衣装の検出・組み立て・取り付け・ビルド時のクラスは、その 2（04b）に分けた。
+
+title 主なクラスと責務 その 1: 画面・設定・生成の流れ
+
+skinparam shadowing false
+skinparam classAttributeIconSize 0
+skinparam wrapWidth 240
+hide empty members
+
+package "画面" {
+  class LegWeaverWindow <<EditorWindow>> {
+    - アバター、ボディの指定、包むメッシュの指定
+    - 設定（GarmentSettings）
+    - 見つけた候補・警告の結果の覚え書き
+    - 重ねる物の選択（アバターの下でのパスごと）
+    --
+    + 対象・衣装・Blender・実行の各区画を描く
+    + 生成を開始し、更新ごとに見守る
+    + キャンセル／閉じた時に止めて片付ける
+  }
+}
+
+package "設定" {
+  class GarmentSettings <<Serializable>> {
+    + 種類、色、デニール、質感、仕上がり
+    + 形（ウエスト・裾・上端・帯・巻き…）
+    + 余裕（隙間・関節・厚み）、つま先、密度、細かさ
+    + 透け（伸び・姿勢・引っ張り）
+    + 構造（帯・パンティ部・補強・縫い目・マチ）
+    + 2 層式、フェイクサイハイ、柄、グラデーション、伝線、たるみ
+    + 衣装の扱い、下着の包み方、肌の扱い
+    --
+    + 設定から決まる判定
+    （不透明か、透けて見えるか、写しを使うか、
+    肌を消すか、姿勢の透けを使うか、Blender に渡す隙間…）
+    + Blender に渡す種類の識別子
+  }
+  class Denier <<static>> {
+    + デニール → 正面の被覆率
+    + デニール → 厚み（mm）
+    + 見る角度による不透明度
+    + 不透明と見なす被覆率
+  }
+  class GarmentFinish <<static>> {
+    + 質感 → lilToon の影・反射・リムの設定
+  }
+}
+
+package "生成" {
+  class GarmentGenerator {
+    + 体、設定の写し、ランナー、結果のレンダラー
+    + 下着の下に残す肌のウェイト
+    --
+    + 開始: 確認 → 体 → 検出 → 書き出し → 版の確認 → 起動
+    + 完了: 結果 → 組み立て → 見た目 → 取り付け → 後処理
+    + 作業フォルダを消す
+    + 「包む」の開始・完了（Blender なし）
+  }
+  class BlenderJob <<static>> {
+    + input.bin・under.bin・job.json を書く
+  }
+  class BlenderRunner {
+    + Blender の場所（保存値／登録情報／Program Files）
+    + 打ち切り時間（品質ごとに保存）
+    + 起動（バックグラウンド、出力の中継）
+    + 動いているか（終了・時間切れの判定と強制終了）
+    + ログ、最新の進み具合
+  }
+  class BlenderSupport <<static>> {
+    + 内蔵のサポート終了の表（Blender・Python）
+    + 判定: 可／警告／不可（理由）
+    + 版の読み取り（フォルダ名、DLL 名）
+  }
+  class WrapGarment <<static>> {
+    + 包める候補を見込みの高い順に
+    + メッシュを法線方向へ出して布にする
+    + 包むメッシュの子として取り付ける
+  }
+}
+
+class "体の解析・衣装の検出・\n組み立てと見た目・取り付けと後処理\n（その 2 の図）" as Detail <<その 2>>
+
+' 関係
+LegWeaverWindow *-- GarmentSettings : 編集する
+LegWeaverWindow --> GarmentGenerator : 開始・完了・片付け
+LegWeaverWindow ..> BlenderRunner : 場所・時間の設定、ログ
+LegWeaverWindow ..> BlenderSupport : 判定の表示
+LegWeaverWindow ..> Detail : 警告、重ねる物の一覧
+
+GarmentGenerator o-- GarmentSettings : 開始時の写し
+GarmentGenerator o-- BlenderRunner
+GarmentGenerator ..> BlenderJob
+GarmentGenerator ..> BlenderSupport
+GarmentGenerator ..> WrapGarment
+GarmentGenerator ..> Detail : 体・検出・組み立て・取り付け
+
+GarmentSettings ..> Denier : 判定の根拠
+Detail ..> Denier : 見た目
+Detail ..> GarmentFinish : 見た目
+
+note bottom of GarmentGenerator
+  設定は開始時に写しを取り、生成中にウィンドウで変えても影響しない。
+  開始の途中で失敗した時も作業フォルダを消す。
+end note
+
+@enduml

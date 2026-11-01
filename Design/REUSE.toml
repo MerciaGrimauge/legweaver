@@ -1,0 +1,9 @@
+version = 1
+
+# 設計書のフォルダのライセンス。コメントを書けない物（図の .png など）もここで示す。
+
+[[annotations]]
+path = "**"
+precedence = "closest"
+SPDX-FileCopyrightText = "2026 MerciaGrimauge"
+SPDX-License-Identifier = "0BSD OR MIT-0"

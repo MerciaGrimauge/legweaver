@@ -1,0 +1,72 @@
+' SPDX-FileCopyrightText: 2026 MerciaGrimauge
+' SPDX-License-Identifier: 0BSD OR MIT-0
+@startuml runtime_components
+' LegWeaver 実行時の働き（コンポーネント図）
+' アバターに入る部品（肌の追従データ）とシェーダー、それらをビルド時・描画時に使う物の関係を表す。
+
+title 実行時の部品とシェーダーの働き
+
+skinparam componentStyle rectangle
+skinparam shadowing false
+skinparam wrapWidth 240
+
+package "アバターの中（生成物）" as avatar {
+  [ボディのレンダラー] as bodyr
+  [衣装のオブジェクト\n（骨の写し＋レンダラー）] as garment
+  [肌の写しのレンダラー\n（透ける時だけ）] as lining
+  [肌の追従データ\n（SkinFollow。データだけ）] as follow
+  [箱で消す部品\n（Avatar Optimizer）] as removebox
+  [衣装の結線・シェイプキー同期\n（Modular Avatar）] as macomp
+  [揺れ物\n（ガーターのリボン）] as physbone
+  artifact "衣装のメッシュ\nUV0: 伸びのマスク\nUV1: 柄の座標\nUV3: 姿勢の係数\nUV4: 脚の座標\n接線: 曲がりを測るベクトル" as mesh
+  artifact "部位ごとのマテリアル\n（lilToon／LegWeaver/Transparent）" as mats
+}
+
+package "ビルド時（アップロード時）" as build {
+  [NDMF の変形の段階\n（SkinFollowPlugin）] as plugin
+  [NDMF のプレビュー\n（SkinFollowPreview）] as preview
+  [Avatar Optimizer\n最適化の段階] as aao
+  [Modular Avatar\n骨格の統合] as ma
+}
+
+package "描画時（PC）" as draw {
+  [深度だけの先行パス] as prez
+  [頂点: 接線の縮みから伸びを求める] as vert
+  [ピクセル: 伸びでアルファを割る\n（_LWDynamicStretch）] as frag
+  [lilToon の半透明の描画] as lilpass
+}
+
+garment --> mesh
+garment --> mats
+lining ..> mats : 体のマテリアルの写し（輪郭線なし）
+garment ..> macomp
+garment ..> follow : 必要なときだけ付く（衣装と一緒に消える）
+garment ..> physbone
+bodyr ..> removebox
+
+follow --> bodyr : 対象（ボディ）と、頂点ごとの新しいウェイト
+plugin --> follow : 読み取り、整合を確かめ、\n体のメッシュの写しにウェイトを与え、部品を取り除く
+plugin --> bodyr : 写したメッシュに差し替える
+preview --> follow : 同じ適用をエディター上の代理レンダラーで見せる
+aao --> removebox : 箱の中の肌の三角形を消す
+ma --> garment : 骨の写しをアバターの骨格へ統合、シェイプキーを同期
+plugin -[hidden]-> aao
+note right of plugin
+  追従データの適用は、肌の削除（最適化の段階）より前の
+  変形の段階で行う。データが体のメッシュと合わなければ
+  何もせず警告だけ出す（別のアバターから来た部品の備え）。
+end note
+
+mats --> prez : 全パスの前に差し込む
+prez --> lilpass : 一番手前の層だけが色を描く
+mesh --> vert : 接線（立った姿勢で長さ 1）と UV3
+vert --> frag : 伸び（三角形の中で補間）
+frag --> lilpass : 伸びた所ほど透ける（縮む側は下限で止める）
+note bottom of draw
+  カスタムシェーダーは lilToon の半透明の見た目をそのまま使い、
+  透明度の計算と先行パスだけを足す。姿勢に応じた透けがオフでも
+  透ける衣装はこのシェーダーを使う（先行パスのため）。
+  Android（Quest）ではカスタムシェーダーが使えないので対象外。
+end note
+
+@enduml

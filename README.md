@@ -27,3 +27,17 @@ Unity 2022.3 向けです。Unity 6 では確認していません。対応 OS �
 ## ライセンス
 
 エディタ拡張（`Editor/`）は GPL-3.0-or-later、アバターに入るシェーダー（`Shaders/`）と実行時の部品（`Runtime/`）は MIT、`Design/` の設計書は 0BSD と MIT-0 のどちらかを選べます。直下の `LICENSE-GPL`・`LICENSE-MIT`・`LICENSE-0BSD`・`LICENSE-MIT-0` は、それぞれのライセンスの全文です（どれか 1 つが全体のライセンスという意味ではありません）。生成した衣類と、それを含むアバターは GPL の対象になりません。詳しくは [LICENSE.md](Packages/io.github.merciagrimauge.legweaver/LICENSE.md) を参照してください。本ソフトウェアは現状のまま提供します。VRChat SDK・NDMF・lilToon・Modular Avatar・Avatar Optimizer・Blender は同梱していません。
+
+## Q.A
+Q.XXに対応して欲しい
+A.OSSなので、そっちで変更して
+
+Q.XXが欲しい
+A.**私は要らない**
+
+Q.サポートをして欲しい
+A.それをする金は貰って無い
+
+考えうる殆どの問い合わせは上記3文しか返ってこないので、問い合わせはするだけ時間の無駄だと思います。
+実際問題、Opusが親切心でタイツの足先だけ出すパターン（一般的にはオープントゥタイツと呼ばれる）も実装してくれてましたが、私は要らんので消させました。
+100万ドルをポンとくれればフルサポートします。そんな事するなら1%の単価でSE、PGに依頼したほうが良いっすよ

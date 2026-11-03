@@ -267,12 +267,19 @@ namespace LegWeaver
             var regionMaterial = builder.Regions.Select((r, i) => (r, m: materials[i])).ToDictionary(x => x.r, x => x.m);
             // （引っ張られた所だけ透ける不透明な衣装は、下に着ている物を隠すので、そこにも裏地を付ける）
             builder.BuildSkinLining(Body, r => regionMaterial.TryGetValue(r, out var m) && m.renderQueue >= SheerQueue,
-                keepWorn: !Settings.StretchSheers, inner: Settings.type == GarmentType.ToeCap ? null : UnderToeCaps());
+                keepWorn: !Settings.StretchSheers, inner: Settings.type == GarmentType.ToeCap ? null : UnderToeCaps(),
+                plain: ToeTips());
             if (builder.SkinMesh == null) return null;
             var bodyMaterials = Body.Renderer.sharedMaterials;
+            Color? skin = null;
             var copies = builder.SkinMaterialSlots
-                .Select(i => GarmentMaterial.SkinCopy(i < bodyMaterials.Length ? bodyMaterials[i] : bodyMaterials.LastOrDefault(),
-                    folder, $"{objectName}_Skin{i}"))
+                .Select((i, k) =>
+                {
+                    var src = i < bodyMaterials.Length ? bodyMaterials[i] : bodyMaterials.LastOrDefault();
+                    if (!builder.SkinPlain[k]) return GarmentMaterial.SkinCopy(src, folder, $"{objectName}_Skin{i}");
+                    skin ??= SkinColor.Estimate(Body, new Color(1f, 0.85f, 0.75f));
+                    return GarmentMaterial.SkinCopy(src, folder, $"{objectName}_Skin{i}_Toes", skin);
+                })
                 .ToArray();
             // 体のマテリアルが無いスロットはほかのものを使う。一つも無ければ裏地は無し
             var any = copies.FirstOrDefault(m => m != null);
@@ -324,6 +331,37 @@ namespace LegWeaver
                 }
             }
             return any ? under : null;
+        }
+
+        /// <summary>
+        /// 足の指先の体の頂点: 足の指の付け根（Toes の骨）より前（足首から付け根への向きを脚の上下に垂直にした向きで）、
+        /// かつ付け根から、足首から付け根までの長さの 1.5 倍以内。各頂点は、付け根が近いほうの足だけで調べる。
+        /// 肌の写しはここをテクスチャで描かない。左右とも Toes の骨が無ければ null。
+        /// </summary>
+        bool[] ToeTips()
+        {
+            var feet = new List<(Vector3 toes, Vector3 ahead, float reach)>();
+            foreach (var s in new[] { "L", "R" })
+            {
+                var foot = Body.Landmarks["foot" + s];
+                var toes = Body.Landmarks["toes" + s];
+                var knee = Body.Landmarks["lowerLeg" + s];
+                if (foot == null || toes == null || knee == null) continue;
+                var up = (knee.Value - foot.Value).normalized;
+                var ahead = Vector3.ProjectOnPlane(toes.Value - foot.Value, up);
+                if (ahead.sqrMagnitude < 1e-12f) continue;
+                feet.Add((toes.Value, ahead.normalized, (toes.Value - foot.Value).magnitude * 1.5f));
+            }
+            if (feet.Count == 0) return null;
+            var v = Body.Vertices;
+            var tips = new bool[v.Length];
+            for (var i = 0; i < v.Length; i++)
+            {
+                var f = feet.OrderBy(x => (v[i] - x.toes).sqrMagnitude).First();
+                var d = v[i] - f.toes;
+                tips[i] = Vector3.Dot(d, f.ahead) > 0f && d.magnitude < f.reach;
+            }
+            return tips;
         }
 
         /// <summary>前に作った、表示中の脚の衣装（タイツ・スパッツ・サイハイ・ニーハイの布の本体。肌の写しは除く）。</summary>

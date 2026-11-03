@@ -62,10 +62,16 @@ namespace LegWeaver
         /// <summary>
         /// 肌の写しに使う体のマテリアル。輪郭線は外す（裏地の縁の周りと衣装のシルエットの上に線を描いてしまう）。
         /// </summary>
-        public static Material SkinCopy(Material body, string folder, string name)
+        /// <param name="plainColor">指定すると、メインテクスチャを外してこの色の単色で描く（足の指先: 爪の模様を写さない）。</param>
+        public static Material SkinCopy(Material body, string folder, string name, Color? plainColor = null)
         {
             if (body == null) return null;
             var mat = new Material(body) { name = name };
+            if (plainColor != null)
+            {
+                if (mat.HasProperty("_MainTex")) mat.SetTexture("_MainTex", null);
+                if (mat.HasProperty("_Color")) mat.SetColor("_Color", plainColor.Value);
+            }
             var shader = mat.shader != null ? mat.shader.name : "";
             if (shader.Contains("Outline"))
             {

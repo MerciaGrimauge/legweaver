@@ -41,6 +41,8 @@ namespace LegWeaver
         public Mesh SkinMesh;
         /// <summary>SkinMesh のサブメッシュごと: 描くのに使う体のマテリアルの番号。</summary>
         public List<int> SkinMaterialSlots = new();
+        /// <summary>SkinMesh のサブメッシュごと: 足の指先の物（テクスチャを使わず単色の肌で描く）。</summary>
+        public List<bool> SkinPlain = new();
 
         int[] _bindTri;
         Vector3[] _bary;
@@ -148,7 +150,9 @@ namespace LegWeaver
         /// 体の頂点ごと: 前に作った、肌にもっと近い衣装（親指サック）の下にある。三角形のすべての頂点がそこに結び付く所には
         /// 裏地を付けない（裏地はこの衣装の面にあり、下の衣装を隠す。縁にかかる三角形は残すので、肌は出ない）
         /// </param>
-        public void BuildSkinLining(AvatarBody body, Func<GarmentRegion, bool> lined, bool keepWorn = true, bool[] inner = null)
+        /// <param name="plain">体の頂点ごと: 足の指先（そこに結び付いた三角形は、別のサブメッシュにして単色の肌で描く）。</param>
+        public void BuildSkinLining(AvatarBody body, Func<GarmentRegion, bool> lined, bool keepWorn = true, bool[] inner = null,
+            bool[] plain = null)
         {
             var mesh = Mesh;
             var tris = _tris; // 領域を並べた順（mesh.triangles はサブメッシュごとにまとまっている）
@@ -176,6 +180,17 @@ namespace LegWeaver
                     if (_bary[v][c] > 1e-4f && !inner[body.Triangles[_bindTri[v] * 3 + c]]) return false;
                 return true;
             }
+            // 足の指先: 布の形は体の指と 1 対 1 に対応しない（指の間を埋める・指に沿わせる）ので、体の UV を割り当てると
+            // 爪のペディキュアなどの模様が伸び、指を曲げるとさらに崩れる。結び付け先の角がすべて指先の体の頂点なら
+            // 指先の頂点とし、3 頂点のうち 2 つ以上が指先の三角形を指先の物とする
+            bool Plain(int v)
+            {
+                if (plain == null) return false;
+                for (var c = 0; c < 3; c++)
+                    if (_bary[v][c] > 1e-4f && !plain[body.Triangles[_bindTri[v] * 3 + c]]) return false;
+                return true;
+            }
+            // 鍵: 体のサブメッシュ × 2 + 指先なら 1
             var groups = new SortedDictionary<int, List<int>>();
             // 領域のサブメッシュの三角形（各三角形の領域は Blender が書いたとおり）
             for (var t = 0; t < _region.Length; t++)
@@ -185,11 +200,13 @@ namespace LegWeaver
                 // 衣装の頂点は体の頂点の上にあるので、これらは取り除いた肌をすべて、それ以上に覆う
                 if (Worn(a) || Worn(b) || Worn(c)) continue;
                 if (Inner(a) && Inner(b) && Inner(c)) continue;
-                var slot = subOf[_bindTri[a]];
-                if (!groups.TryGetValue(slot, out var l)) groups[slot] = l = new List<int>();
+                var tip = (Plain(a) ? 1 : 0) + (Plain(b) ? 1 : 0) + (Plain(c) ? 1 : 0) >= 2;
+                var key = subOf[_bindTri[a]] * 2 + (tip ? 1 : 0);
+                if (!groups.TryGetValue(key, out var l)) groups[key] = l = new List<int>();
                 l.AddRange(new[] { a, b, c });
             }
-            SkinMaterialSlots = groups.Keys.ToList();
+            SkinMaterialSlots = groups.Keys.Select(k => k / 2).ToList();
+            SkinPlain = groups.Keys.Select(k => k % 2 == 1).ToList();
             if (groups.Count == 0)
             {
                 SkinMesh = null;

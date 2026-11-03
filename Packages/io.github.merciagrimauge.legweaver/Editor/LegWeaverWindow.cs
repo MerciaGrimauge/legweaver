@@ -62,6 +62,10 @@ namespace LegWeaver
 
         void OnGUI()
         {
+            // 見つけた物が後から消された（ほかのツールが衣装やボディを作り直したなど）なら、覚え書きを捨てて探し直す
+            // （消えた物に触れると例外で描画が途中で止まり、ウィンドウが崩れて見える）
+            if (Gone(_autoBody) || Gone(_autoWrap) || Gone(_spanFor) || (_layers != null && _layers.Exists(c => c.Renderer == null)))
+                ResetFound();
             _scroll = EditorGUILayout.BeginScrollView(_scroll);
             var busy = _runner != null && _runner.IsRunning;
             using (new EditorGUI.DisabledScope(busy))
@@ -588,6 +592,9 @@ namespace LegWeaver
             if (found == null) throw new InvalidOperationException($"{what}（{r.name}）がアバター {root.name} の中に見つかりません。指定し直してください。");
             return found;
         }
+
+        /// <summary>覚えている物が、Unity の側では消されているか（参照は残っているが中身がない）。</summary>
+        static bool Gone(UnityEngine.Object o) => o is not null && o == null;
 
         /// <summary>アバターで見つけたものを探し直す（何かを作った、配置した、または途中で失敗した後）。</summary>
         void ResetFound() => (_candidatesFor, _wrapFor, _layers, _spanFor) = (null, (null, null), null, null);

@@ -266,19 +266,23 @@ namespace LegWeaver
             // 衣装が透ける所すべてに裏地を付ける（フェイクサイハイの靴下の部分は透けない）
             var regionMaterial = builder.Regions.Select((r, i) => (r, m: materials[i])).ToDictionary(x => x.r, x => x.m);
             // （引っ張られた所だけ透ける不透明な衣装は、下に着ている物を隠すので、そこにも裏地を付ける）
+            var tips = ToeTips();
             builder.BuildSkinLining(Body, r => regionMaterial.TryGetValue(r, out var m) && m.renderQueue >= SheerQueue,
                 keepWorn: !Settings.StretchSheers, inner: Settings.type == GarmentType.ToeCap ? null : UnderToeCaps(),
-                plain: ToeTips());
+                plain: tips);
             if (builder.SkinMesh == null) return null;
             var bodyMaterials = Body.Renderer.sharedMaterials;
-            Color? skin = null;
             var copies = builder.SkinMaterialSlots
                 .Select((i, k) =>
                 {
                     var src = i < bodyMaterials.Length ? bodyMaterials[i] : bodyMaterials.LastOrDefault();
                     if (!builder.SkinPlain[k]) return GarmentMaterial.SkinCopy(src, folder, $"{objectName}_Skin{i}");
-                    skin ??= SkinColor.Estimate(Body, new Color(1f, 0.85f, 0.75f));
-                    return GarmentMaterial.SkinCopy(src, folder, $"{objectName}_Skin{i}_Toes", skin);
+                    // 単色は、指先のすぐ後ろ（指先の頂点と三角形を共にする、指先でない頂点）の肌の色にする（境目で色がそろう。
+                    // 脚全体の平均では、足の甲の肌と色が違って境目が目立つ）
+                    var behind = TipEdge(tips, i);
+                    var color = behind.Count > 0 ? SkinColor.At(Body, src, behind, Color.white)
+                        : SkinColor.Estimate(Body, new Color(1f, 0.85f, 0.75f));
+                    return GarmentMaterial.SkinCopy(src, folder, $"{objectName}_Skin{i}_Toes", color);
                 })
                 .ToArray();
             // 体のマテリアルが無いスロットはほかのものを使う。一つも無ければ裏地は無し
@@ -362,6 +366,26 @@ namespace LegWeaver
                 tips[i] = Vector3.Dot(d, f.ahead) > 0f && d.magnitude < f.reach;
             }
             return tips;
+        }
+
+        /// <summary>
+        /// 体のサブメッシュ submesh の三角形のうち、指先の頂点と指先でない頂点を共に持つ物の、指先でない頂点
+        /// （指先のすぐ後ろの肌）。指先が無ければ空。
+        /// </summary>
+        HashSet<int> TipEdge(bool[] tips, int submesh)
+        {
+            var edge = new HashSet<int>();
+            var mesh = Body.Mesh;
+            if (tips == null || submesh >= mesh.subMeshCount || mesh.GetTopology(submesh) != MeshTopology.Triangles) return edge;
+            var t = mesh.GetTriangles(submesh);
+            for (var i = 0; i < t.Length; i += 3)
+            {
+                int a = t[i], b = t[i + 1], c = t[i + 2];
+                if (!(tips[a] || tips[b] || tips[c]) || (tips[a] && tips[b] && tips[c])) continue;
+                foreach (var v in new[] { a, b, c })
+                    if (!tips[v]) edge.Add(v);
+            }
+            return edge;
         }
 
         /// <summary>前に作った、表示中の脚の衣装（タイツ・スパッツ・サイハイ・ニーハイの布の本体。肌の写しは除く）。</summary>

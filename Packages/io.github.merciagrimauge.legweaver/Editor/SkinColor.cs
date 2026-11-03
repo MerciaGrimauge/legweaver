@@ -47,6 +47,22 @@ namespace LegWeaver
             return Opaque(sum / bestVerts.Count * tint);
         }
 
+        /// <summary>
+        /// 体の頂点 verts の所で、マテリアル mat が描く色の平均（メインテクスチャにマテリアルの色を掛けたもの）。
+        /// 頂点もマテリアルも無ければ fallback。
+        /// </summary>
+        public static Color At(AvatarBody body, Material mat, IReadOnlyCollection<int> verts, Color fallback)
+        {
+            if (mat == null || verts.Count == 0) return fallback;
+            var (tint, tex) = MainTexture(mat);
+            if (tex == null) return Opaque(tint);
+            var read = Readable(tex);
+            var sum = Color.clear;
+            foreach (var i in verts) sum += Sample(read, body.UV[i]);
+            Object.DestroyImmediate(read);
+            return Opaque(sum / verts.Count * tint);
+        }
+
         static Color Opaque(Color c)
         {
             c.a = 1f;

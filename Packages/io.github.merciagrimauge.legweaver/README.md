@@ -358,6 +358,16 @@ VCC（ALCOM）でマイナーの範囲を固定してください（例: `2.1.x`
 
 ソースコードのコメントは日本語です。英語が必要な場合は、翻訳ツールで訳してください。
 
+## 商標と開発について
+
+VRChat・Unity・Blender・lilToon・Modular Avatar・Avatar Optimizer・NDMF などは、各社・各作者の商標または製品名です。このツールはそれらの各社・各作者とは関係がなく、承認も受けていません。このツールについて、各社・各作者へ問い合わせないでください。
+
+このツールは、作者が方針を決め、AI（Anthropic の Claude）が実装・確認・文書の大部分を行って作りました（開発体制は https://github.com/MerciaGrimauge/legweaver/tree/main/Design/development ）。
+
+## サポート
+
+機能追加や個別の技術サポートはしません。BOOTH で入手した場合は、BOOTH の決まり（ショップの義務）に従って、ダウンロードできない・商品の中身がおかしいといった連絡には最低限の対応をします。ただし、早い返事は期待しないでください。
+
 ## ライセンス
 
 Copyright (c) 2026 MerciaGrimauge。部分ごとにライセンスが異なります。詳しくは `LICENSE.md`（英語が正文）を見てください。

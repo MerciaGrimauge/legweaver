@@ -321,7 +321,9 @@ def read_body(job: dict[str, Any]) -> Work:
     if g["type"] == "toecap":
         # 親指のサック: 足の指の塊で親指とほかの指の境目を切る（形で分けるときは、溶接した体のつながりを使う）
         work.body_part = None
-        work.planes, work.seeds = toecap_cut(wpos, toe_groups(work), lm, up, lateral, hip_mid)
+        work.planes, work.seeds = toecap_cut(
+            wpos, toe_groups(work), lm, up, lateral, hip_mid, work.wtris[work.tri_ids], nrm[first]
+        )
     return work
 
 

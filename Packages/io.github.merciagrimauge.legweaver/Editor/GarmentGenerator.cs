@@ -31,7 +31,9 @@ namespace LegWeaver
         public SkinnedMeshRenderer SkinResult { get; private set; }
         public string Status { get; private set; } = "";
         string _workDir;
-        List<string> _shrinkOff = new();
+        List<(string name, float weight)> _shrinkOff = new();
+        /// <summary>この衣装のために加えた肌の削除の部品（GarmentParts に覚える）。</summary>
+        readonly List<Component> _removals = new();
         List<string> _under = new();
         List<SkinnedMeshRenderer> _underRenderers = new();
         /// <summary>衣装を上に重ねたメッシュの名前（衣装モード）。</summary>
@@ -115,7 +117,7 @@ namespace LegWeaver
             {
                 gen._shrinkOff = ShrinkShapes.TurnOff(smr, gen.Body.MetersPerUnit);
                 if (gen._shrinkOff.Count > 0)
-                    Debug.Log("[LegWeaver] シュリンク系シェイプキーを 0 にしました: " + string.Join(", ", gen._shrinkOff));
+                    Debug.Log("[LegWeaver] シュリンク系シェイプキーを 0 にしました: " + string.Join(", ", gen._shrinkOff.Select(s => s.name)));
             }
             if (gen.Settings.outfitMode == OutfitMode.OverUnderLayers)
             {
@@ -209,13 +211,15 @@ namespace LegWeaver
             // （衣装が透ける、または透けるようになる所では、裏地が肌の代わりになる所でだけ肌を消す）
             var liningMissing = g.UsesSkinLining && skin == null;
             var removed = g.RemovesSkin && GarmentInstaller.CanRemoveSkin && !liningMissing ? RemoveSkin(builder.Covered) : 0;
+            // 「外す」で元に戻せるよう、加えた変更を衣装に覚えておく
+            GarmentInstaller.AddParts(Result.transform.parent.gameObject, _removals, Body.Renderer, _shrinkOff);
             AssetDatabase.SaveAssets();
 
             Status = $"{objectName} を生成しました（{result.vertexCount} 頂点 / {result.triangleCount} ポリゴン、" +
                      $"シェイプキー {builder.SyncedBlendShapes.Count} 個を同期）。" +
                      (tails > 0 ? $"\nリボンの垂れ {tails} 本に揺れ物を付けました。" : "") +
                      (_under.Count > 0 ? $"\n下に着ている物の上に重ねました: {string.Join(", ", _under)}" : "") +
-                     (_shrinkOff.Count > 0 ? $"\nシュリンク系シェイプキーを 0 にしました: {string.Join(", ", _shrinkOff)}" : "") +
+                     (_shrinkOff.Count > 0 ? $"\nシュリンク系シェイプキーを 0 にしました: {string.Join(", ", _shrinkOff.Select(s => s.name))}" : "") +
                      (removed > 0 ? $"\n肌の削除: AAO Remove Mesh By Box（{removed} 個の箱）を {Body.Renderer.name} に追加しました。" : "") +
                      AvatarTriangles(Body.Animator.gameObject) +
                      $"\n保存先: {folder}";
@@ -437,14 +441,18 @@ namespace LegWeaver
                     GarmentInstaller.AddSkinFollow(Body, Result.transform.parent.gameObject, SkinFollow);
             }
             var boxes = SkinRemover.FitBoxes(Body, skinCovered, g.removalMarginCm / 100f);
-            var removed = GarmentInstaller.AddSkinRemoval(Body, boxes);
+            var garment = Result.transform.parent.gameObject;
+            _removals.Add(GarmentInstaller.AddSkinRemoval(Body, boxes, garment));
+            var removed = _removals[^1] != null ? boxes.Count : 0;
             // 不透明な衣装では、上に重ねた物も同じように隠す（そうしないと、自身のウェイトで肌と違う動きをする所で
             // 衣装を突き抜ける）。透ける衣装ではそれが見える
             foreach (var layer in sheerOverWorn ? new List<SkinnedMeshRenderer>() : _underRenderers)
             {
                 var worn = UnderLayers.AsBody(Body, layer);
                 var wornCovered = UnderLayers.CoveredFromBody(Body, covered, layer);
-                removed += GarmentInstaller.AddSkinRemoval(worn, SkinRemover.FitBoxes(worn, wornCovered, g.removalMarginCm / 100f));
+                var wornBoxes = SkinRemover.FitBoxes(worn, wornCovered, g.removalMarginCm / 100f);
+                _removals.Add(GarmentInstaller.AddSkinRemoval(worn, wornBoxes, garment));
+                if (_removals[^1] != null) removed += wornBoxes.Count;
             }
             return removed;
         }

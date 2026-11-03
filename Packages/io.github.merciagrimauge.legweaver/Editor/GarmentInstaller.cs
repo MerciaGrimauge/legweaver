@@ -190,11 +190,14 @@ namespace LegWeaver
             EditorUtility.SetDirty(comp);
         }
 
-        /// <summary>不透明な衣装か肌の写しが隠す肌のために、体に AAO の "Remove Mesh By Box" を追加する。</summary>
-        public static int AddSkinRemoval(AvatarBody body, List<SkinRemover.Box> boxes)
+        /// <summary>
+        /// 不透明な衣装か肌の写しが隠す肌のために、体に AAO の "Remove Mesh By Box" を追加する。同じオブジェクトに
+        /// 持ち主の衣装 `garment` を指す印（RemovalOwner）も付ける。追加した部品を返す（箱が無いか AAO が無ければ null）。
+        /// </summary>
+        public static Component AddSkinRemoval(AvatarBody body, List<SkinRemover.Box> boxes, GameObject garment)
         {
 #if LW_AAO
-            if (boxes.Count == 0) return 0;
+            if (boxes.Count == 0) return null;
             var comp = Undo.AddComponent<RemoveMeshInBox>(body.Renderer.gameObject);
             comp.Initialize(1);
             comp.Boxes = boxes.Select(b => new RemoveMeshInBox.BoundingBox
@@ -204,10 +207,80 @@ namespace LegWeaver
                 Rotation = b.Rotation,
             }).ToArray();
             EditorUtility.SetDirty(comp);
-            return boxes.Count;
+            var owner = Undo.AddComponent<RemovalOwner>(body.Renderer.gameObject);
+            owner.garment = garment;
+            owner.removal = comp;
+            EditorUtility.SetDirty(owner);
+            return comp;
 #else
-            return 0;
+            return null;
 #endif
+        }
+
+        /// <summary>
+        /// 作った衣装を外す: そのために加えた肌の削除と印を消し、0 にした縮めるシェイプキーを元の値に戻し（ほかに残る衣装が
+        /// 同じシェイプを 0 にしていなければ）、衣装のオブジェクトを消す。一度の「元に戻す」で全部戻る。
+        /// 作ったメッシュ・マテリアルのファイルは消さない。
+        /// </summary>
+        public static void Uninstall(GameObject avatar, GarmentParts parts)
+        {
+            // （直前の操作とは別のまとまりにする: 1 回の Undo で、外す前にだけ戻る）
+            Undo.IncrementCurrentGroup();
+            Undo.SetCurrentGroupName("LegWeaver: 外す");
+            var group = Undo.GetCurrentGroup();
+            var garment = parts.gameObject;
+            foreach (var o in avatar.GetComponentsInChildren<RemovalOwner>(true).Where(o => o.garment == garment))
+                DropRemoval(o);
+            // 印が手で消されていても、覚え書きにある削除の部品は外す
+            foreach (var c in parts.removals.Where(c => c != null))
+                Undo.DestroyObjectImmediate(c);
+            var body = parts.shrinkBody;
+            if (body != null && body.sharedMesh != null)
+            {
+                var stillOff = avatar.GetComponentsInChildren<GarmentParts>(true)
+                    .Where(p => p != parts && p.shrinkBody == body).SelectMany(p => p.shrinkShapes).ToHashSet();
+                Undo.RecordObject(body, "LegWeaver: 外す");
+                for (var i = 0; i < parts.shrinkShapes.Length && i < parts.shrinkWeights.Length; i++)
+                {
+                    var s = body.sharedMesh.GetBlendShapeIndex(parts.shrinkShapes[i]);
+                    if (s >= 0 && !stillOff.Contains(parts.shrinkShapes[i])) body.SetBlendShapeWeight(s, parts.shrinkWeights[i]);
+                }
+            }
+            Undo.DestroyObjectImmediate(garment);
+            Undo.CollapseUndoOperations(group);
+        }
+
+        /// <summary>消された衣装のための肌の削除（持ち主の印が消えた衣装を指す物）を、印ごと消す（元に戻せる）。</summary>
+        public static void DropOrphans(GameObject avatar)
+        {
+            Undo.IncrementCurrentGroup();
+            Undo.SetCurrentGroupName("LegWeaver: 片付ける");
+            var group = Undo.GetCurrentGroup();
+            foreach (var o in avatar.GetComponentsInChildren<RemovalOwner>(true).Where(o => SkinFollowPlugin.Gone(o.garment)))
+                DropRemoval(o);
+            Undo.CollapseUndoOperations(group);
+        }
+
+        /// <summary>肌の削除の印と、その削除の部品を消す（元に戻せる）。</summary>
+        static void DropRemoval(RemovalOwner owner)
+        {
+            if (owner.removal != null) Undo.DestroyObjectImmediate(owner.removal);
+            Undo.DestroyObjectImmediate(owner);
+        }
+
+        /// <summary>
+        /// 作った衣装のオブジェクトに、加えた変更の覚え書き（GarmentParts）を付ける: 肌の削除の部品と、0 にした縮める
+        /// シェイプキー（名前と元の値）。
+        /// </summary>
+        public static void AddParts(GameObject garment, IEnumerable<Component> removals, SkinnedMeshRenderer shrinkBody,
+            IReadOnlyList<(string name, float weight)> shrunk)
+        {
+            var parts = Undo.AddComponent<GarmentParts>(garment);
+            parts.removals = removals.Where(c => c != null).ToArray();
+            parts.shrinkBody = shrunk.Count > 0 ? shrinkBody : null;
+            parts.shrinkShapes = shrunk.Select(s => s.name).ToArray();
+            parts.shrinkWeights = shrunk.Select(s => s.weight).ToArray();
+            EditorUtility.SetDirty(parts);
         }
     }
 }

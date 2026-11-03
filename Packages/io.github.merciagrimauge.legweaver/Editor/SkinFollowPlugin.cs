@@ -23,6 +23,16 @@ namespace LegWeaver
 
         protected override void Configure()
         {
+            // 衣装が消された（または EditorOnly にされた）のに体に残った肌の削除は、AAO が削除する前に外す
+            // （衣装を消しただけで、その下の肌が消えたままにならないように）
+            InPhase(BuildPhase.Resolving).Run("Drop skin removal of removed garments", ctx =>
+            {
+                foreach (var owner in ctx.AvatarRootObject.GetComponentsInChildren<RemovalOwner>(true))
+                {
+                    if (owner.removal != null && Gone(owner.garment)) Object.DestroyImmediate(owner.removal);
+                    Object.DestroyImmediate(owner);
+                }
+            });
             InPhase(BuildPhase.Transforming).Run("Skin follows the garment", ctx =>
             {
                 foreach (var follow in ctx.AvatarRootObject.GetComponentsInChildren<SkinFollow>(true))
@@ -39,6 +49,18 @@ namespace LegWeaver
                     Object.DestroyImmediate(follow);
                 }
             }).PreviewingWith(new SkinFollowPreview());
+        }
+
+        /// <summary>
+        /// 肌の削除の持ち主の衣装が、もうアバターに無いか（消された、または自身か親が EditorOnly でビルドから外れる）。
+        /// 非表示なだけの衣装は含めない（メニューで後から表示する衣装の下の肌も消す）。
+        /// </summary>
+        public static bool Gone(GameObject garment)
+        {
+            if (garment == null) return true;
+            for (var t = garment.transform; t != null; t = t.parent)
+                if (t.CompareTag("EditorOnly")) return true;
+            return false;
         }
 
         /// <summary>

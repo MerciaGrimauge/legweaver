@@ -31,19 +31,19 @@ namespace LegWeaver
             return result;
         }
 
-        /// <summary>有効な縮めるシェイプをオフにする（元に戻せる）。その名前を返す。</summary>
-        public static List<string> TurnOff(SkinnedMeshRenderer smr, float metersPerUnit)
+        /// <summary>有効な縮めるシェイプをオフにする（元に戻せる）。その名前と元の値を返す。</summary>
+        public static List<(string name, float weight)> TurnOff(SkinnedMeshRenderer smr, float metersPerUnit)
         {
-            var names = new List<string>();
+            var off = new List<(string, float)>();
             var found = FindActive(smr, metersPerUnit);
-            if (found.Count == 0) return names;
+            if (found.Count == 0) return off;
             Undo.RecordObject(smr, "Turn Off Shrink Shapes");
             foreach (var s in found)
             {
+                off.Add((smr.sharedMesh.GetBlendShapeName(s), smr.GetBlendShapeWeight(s)));
                 smr.SetBlendShapeWeight(s, 0);
-                names.Add(smr.sharedMesh.GetBlendShapeName(s));
             }
-            return names;
+            return off;
         }
 
         /// <summary>メッシュのシェイプキーを 1 つずつ（ウェイト最大で）調べ、

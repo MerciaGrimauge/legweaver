@@ -66,24 +66,56 @@ namespace LegWeaver
             // （消えた物に触れると例外で描画が途中で止まり、ウィンドウが崩れて見える）
             if (Gone(_autoBody) || Gone(_autoWrap) || Gone(_spanFor) || (_layers != null && _layers.Exists(c => c.Renderer == null)))
                 ResetFound();
+            // 項目の名前の欄: 長い名前（「引っ張られた所の透け（不透明）」など）が切れないよう、ウィンドウの幅に合わせて広げる
+            EditorGUIUtility.labelWidth = Mathf.Clamp(position.width * 0.44f, 150f, 280f);
+            WindowStyle.Header(Version);
             _scroll = EditorGUILayout.BeginScrollView(_scroll);
             var busy = _runner != null && _runner.IsRunning;
+            var g = settings;
             using (new EditorGUI.DisabledScope(busy))
             {
-                DrawTarget();
-                EditorGUILayout.Space();
-                DrawGarment();
-                EditorGUILayout.Space();
-                DrawBlender();
+                using (WindowStyle.Card("対象", "Avatar Icon"))
+                {
+                    DrawTarget();
+                    DrawMade();
+                }
+                using (WindowStyle.Card("種類", "ClothInspector.PaintTool"))
+                    DrawType(g);
+                using (WindowStyle.Card("見た目", "Material Icon"))
+                    DrawLook(g);
+                if (g.type == GarmentType.Wrap)
+                {
+                    using (WindowStyle.Card("包む", "MeshRenderer Icon"))
+                        DrawWrap(g);
+                }
+                else
+                {
+                    if (HasShape(g))
+                        using (WindowStyle.Card("形", "MoveTool"))
+                            DrawShape(g);
+                    using (WindowStyle.Card("衣装の扱い", "SkinnedMeshRenderer Icon"))
+                        DrawOutfit(g);
+                    using (WindowStyle.Card("透けと柄", "PreMatSphere"))
+                        DrawSheer(g);
+                    using (var c = WindowStyle.FoldCard(ref showBuild, "実物の構造"))
+                        if (c != null) DrawBuild(g);
+                    using (WindowStyle.Card("肌", "AvatarMask Icon"))
+                        DrawSkin(g);
+                    using (var c = WindowStyle.FoldCard(ref showAdvanced, "詳細設定"))
+                        if (c != null) DrawAdvanced(g);
+                }
+                using (WindowStyle.Card("Blender", "Settings"))
+                    DrawBlender();
             }
-            EditorGUILayout.Space();
             DrawRun(busy);
             EditorGUILayout.EndScrollView();
         }
 
+        /// <summary>パッケージとして入っていればその版（Assets の中に置いた開発用などは null）。</summary>
+        static string Version => UnityEditor.PackageManager.PackageInfo.FindForAssembly(typeof(LegWeaverWindow).Assembly)?.version;
+
         void DrawTarget()
         {
-            EditorGUILayout.LabelField("対象", EditorStyles.boldLabel);
             avatar = (GameObject)EditorGUILayout.ObjectField("アバター", avatar, typeof(GameObject), true);
             if (avatar == null)
             {
@@ -132,21 +164,87 @@ namespace LegWeaver
             }
         }
 
-        void DrawGarment()
+        /// <summary>
+        /// このアバターに作った衣装の一覧と「外す」ボタン。消された衣装の肌の削除が残っていれば「片付ける」ボタン。
+        /// </summary>
+        void DrawMade()
         {
-            EditorGUILayout.LabelField("衣装", EditorStyles.boldLabel);
-            var g = settings;
-            g.type = (GarmentType)EditorGUILayout.Popup("種類", (int)g.type, new[] { "タイツ", "スパッツ", "サイハイソックス", "ニーハイソックス", "手袋", "アームカバー", "包む（おばけのしっぽなど）", "親指サック（タイツの下）", "ガーター", "レッグラップ" });
+            if (avatar == null || EditorUtility.IsPersistent(avatar)) return;
+            var made = avatar.GetComponentsInChildren<GarmentParts>(true);
+            var orphans = avatar.GetComponentsInChildren<RemovalOwner>(true).Where(o => SkinFollowPlugin.Gone(o.garment)).ToList();
+            if (made.Length == 0 && orphans.Count == 0) return;
+            EditorGUILayout.Space(4);
+            EditorGUILayout.LabelField("作った衣装", EditorStyles.miniBoldLabel);
+            foreach (var parts in made)
+                using (new EditorGUILayout.HorizontalScope())
+                {
+                    EditorGUILayout.LabelField(parts.gameObject.name);
+                    if (GUILayout.Button(new GUIContent("外す", "衣装と、そのために加えた肌の削除を外し、0 にしたシェイプキーを元の値に戻します（元に戻す操作で戻せます）。" +
+                                                                "作ったメッシュやマテリアルのファイルは消しません"), GUILayout.Width(60)))
+                    {
+                        Remove(parts);
+                        GUIUtility.ExitGUI();
+                    }
+                }
+            if (orphans.Count > 0)
+            {
+                EditorGUILayout.HelpBox($"消された衣装のための肌の削除が {orphans.Count} 個残っています（アップロードの時は自動で外します）。", MessageType.Warning);
+                if (GUILayout.Button("片付ける"))
+                {
+                    GarmentInstaller.DropOrphans(avatar);
+                    GUIUtility.ExitGUI();
+                }
+            }
+        }
+
+        void Remove(GarmentParts parts)
+        {
+            var name = parts.gameObject.name;
+            GarmentInstaller.Uninstall(avatar, parts);
+            ResetFound();
+            _status = $"{name} を外しました。";
+        }
+
+        /// <summary>種類のボタンの段（脚・腕・小物・ほか）。</summary>
+        static readonly (string row, (GarmentType type, string label, string tip)[] items)[] TypeRows =
+        {
+            ("脚", new[]
+            {
+                (GarmentType.Tights, "タイツ", "タイツ"),
+                (GarmentType.Spats, "スパッツ", "スパッツ（太ももの途中まで）"),
+                (GarmentType.ThighHigh, "サイハイ", "サイハイソックス"),
+                (GarmentType.KneeHigh, "ニーハイ", "ニーハイソックス"),
+            }),
+            ("腕", new[]
+            {
+                (GarmentType.Gloves, "手袋", "手袋"),
+                (GarmentType.ArmCovers, "アームカバー", "アームカバー"),
+            }),
+            ("小物", new[]
+            {
+                (GarmentType.ToeCap, "親指サック", "親指サック（タイツの下）"),
+                (GarmentType.Garter, "ガーター", "ガーター（試作）"),
+                (GarmentType.LegWrap, "レッグラップ", "レッグラップ（試作）"),
+            }),
+            ("ほか", new[] { (GarmentType.Wrap, "包む", "包む（おばけのしっぽなど、脚の代わりのメッシュを布で包む）") }),
+        };
+
+        void DrawType(GarmentSettings g)
+        {
+            g.type = WindowStyle.TypeRows(g.type, TypeRows);
             if (g.IsSock)
-                using (new EditorGUI.IndentLevelScope())
-                    g.sockTop = (SockTop)EditorGUILayout.Popup(new GUIContent("口ゴム", "上端の帯の見た目（無地／レースの網目／滑り止めの波線）"),
-                        (int)g.sockTop, new[] { "無地", "レース", "滑り止め" });
+                g.sockTop = (SockTop)EditorGUILayout.Popup(new GUIContent("口ゴム", "上端の帯の見た目（無地／レースの網目／滑り止めの波線）"),
+                    (int)g.sockTop, new[] { "無地", "レース", "滑り止め" });
+        }
+
+        void DrawLook(GarmentSettings g)
+        {
             g.color = EditorGUILayout.ColorField("色", g.color);
             using (new EditorGUILayout.HorizontalScope())
             {
                 EditorGUILayout.PrefixLabel(" ");
                 foreach (var (label, color) in GarmentColors.Presets)
-                    if (GUILayout.Button(label, EditorStyles.miniButton)) g.color = color;
+                    if (WindowStyle.Swatch(label, color)) g.color = color;
             }
             g.finish = (Finish)EditorGUILayout.Popup(
                 new GUIContent("質感", "標準: lilToon の既定のまま。マット〜サテン: 現実寄り（つやの強さが順に増す）。トゥーン: 段のある影と硬いハイライト（アニメ調）"),
@@ -161,65 +259,36 @@ namespace LegWeaver
                 var d = EditorGUILayout.FloatField(Mathf.Round(Mathf.Exp(t)), GUILayout.Width(60));
                 g.denier = Mathf.Clamp(d, Denier.MinDenier, Denier.MaxDenier);
             }
-            if (g.type == GarmentType.Wrap)
+            if (g.type == GarmentType.Wrap) return;
+            using (new EditorGUILayout.HorizontalScope())
             {
-                DrawWrap(g);
-                return;
+                EditorGUILayout.PrefixLabel(" ");
+                GUILayout.Label($"{Denier.Describe(g.denier)} / 厚み {g.Thickness:0.00} mm / " +
+                                (g.twoLayer
+                                    ? $"見た目 {g.apparentDenier:0}D 相当（正面の不透明度 {g.LookCoverage:P0}）/ 肌は削除"
+                                    : $"正面の不透明度 {g.Coverage:P0}" + (g.IsOpaque ? " / 不透明として扱う" : "")), WindowStyle.Caption);
             }
-            DrawOutfit(g);
-            using (new EditorGUI.DisabledScope(g.type is GarmentType.Spats or GarmentType.ToeCap or GarmentType.Garter or GarmentType.LegWrap))
+            // つま先は足を包む脚の衣類だけ（スパッツ・腕の衣類・小物は足先を作らない）
+            using (new EditorGUI.DisabledScope(g.type is GarmentType.Spats or GarmentType.ToeCap or GarmentType.Garter or GarmentType.LegWrap || g.IsArm))
                 g.toes = (ToeStyle)EditorGUILayout.Popup(
                     new GUIContent("つま先", "まとめ: 指をひとまとめに包み、指の間を埋めます。5 本指: 体の指に沿って 1 本ずつ包みます（指のボーンがあれば指ごとに曲がります。体の指が分かれていなければ体と同じ形になります）。足袋型: 親指だけを分けて包み、ほかの 4 本はまとめます（体の親指と人差し指が離れていなければ、まとめと同じ形になります）"),
                     (int)g.toes, new[] { "まとめ", "5 本指", "足袋型" });
             g.quality = (Quality)EditorGUILayout.Popup(
                 new GUIContent("仕上がり", $"通常: 体のメッシュと同じ細かさ（軽い）。高品質: 曲がる所を細かく丸くします（最大 {GarmentSettings.HighQualityMaxTriangles:N0} 三角形。2 層式は裏地を含めて）"),
                 (int)g.quality, new[] { "通常", "高品質" });
-            DrawFakeThighHigh(g);
-            DrawPattern(g);
-            using (new EditorGUI.DisabledScope(g.IsFakeThighHigh))
-                g.twoLayer = EditorGUILayout.Toggle(
-                    new GUIContent("2 層式（フェイクタイツ）", "厚手の生地の裏に肌色の裏地があり、表から素肌が透けて見えるタイツ。厚みと肌の削除は上のデニール、見た目は「見かけのデニール」に従います"),
-                    g.twoLayer);
-            if (g.twoLayer)
-            {
-                using (new EditorGUI.IndentLevelScope())
-                {
-                    g.apparentDenier = EditorGUILayout.Slider(new GUIContent("見かけのデニール", "表から見た透け感（裏地の肌色がどれだけ見えるか）"),
-                        g.apparentDenier, Denier.MinDenier, 200f);
-                    g.liningFromSkin = EditorGUILayout.Toggle(new GUIContent("裏地の色を肌から取る", "脚の肌テクスチャの平均色を裏地に使います"),
-                        g.liningFromSkin);
-                    using (new EditorGUI.DisabledScope(g.liningFromSkin))
-                        g.liningColor = EditorGUILayout.ColorField("裏地の色", g.liningColor);
-                }
-            }
-            EditorGUILayout.LabelField(" ",
-                $"{Denier.Describe(g.denier)} / 厚み {g.Thickness:0.00} mm / " +
-                (g.twoLayer
-                    ? $"見た目 {g.apparentDenier:0}D 相当（正面の不透明度 {g.LookCoverage:P0}）/ 肌は削除"
-                    : $"正面の不透明度 {g.Coverage:P0}" + (g.IsOpaque ? " / 不透明として扱う" : "")));
+        }
 
-            using (new EditorGUI.DisabledScope(!g.IsOpaque || g.twoLayer || g.IsFakeThighHigh || g.denier >= 200f))
-                g.opaqueStretchSheer = EditorGUILayout.Slider(
-                    new GUIContent("引っ張られた所の透け（不透明）",
-                        "不透明のデニールでも、かかと・つま先・曲げた膝の前・お尻など引っ張られる所だけ肌が透けるようにします。0 で透けません。" +
-                        "デニールが高いほど弱く、200D 以上では透けません。肌の写しを使います"),
-                    g.opaqueStretchSheer, 0f, 1f);
-            using (new EditorGUI.DisabledScope(!g.LooksSheer))
-                g.stretchStrength = EditorGUILayout.Slider(
-                    new GUIContent("伸びによる透け", "太もも・ふくらはぎ・膝の前など、布が伸びる部分を透けやすくします（半透明のときだけ）"),
-                    g.stretchStrength, 0f, 2f);
-            // （腕の衣装には使わない: 伸びはボーンの接するところに出る。PoseStretch を参照）
-            using (new EditorGUI.DisabledScope(!g.LooksSheer || g.stretchStrength <= 0 || g.IsArm))
-                g.dynamicStretch = EditorGUILayout.Toggle(
-                    new GUIContent("姿勢に応じて透けを変える", "膝を曲げると膝の前が透け、裏が濃くなります。専用の lilToon カスタムシェーダーを使います（PC 版のみ）"),
-                    g.dynamicStretch);
+        /// <summary>種類ごとの形の設定があるか（「形」のカードを出すか）。</summary>
+        static bool HasShape(GarmentSettings g) => g.type != GarmentType.Wrap;
 
-            DrawBuild(g);
-
+        /// <summary>種類ごとの形（ウエスト・裾・上端・長さ・帯・巻き方など）。</summary>
+        void DrawShape(GarmentSettings g)
+        {
             switch (g.type)
             {
                 case GarmentType.Tights:
                     g.waistHeight = EditorGUILayout.Slider(new GUIContent("ウエストの高さ", "0 = 股関節、1 = 胸"), g.waistHeight, 0f, 1f);
+                    DrawFakeThighHigh(g);
                     break;
                 case GarmentType.Spats:
                     g.waistHeight = EditorGUILayout.Slider(new GUIContent("ウエストの高さ", "0 = 股関節、1 = 胸"), g.waistHeight, 0f, 1f);
@@ -265,41 +334,78 @@ namespace LegWeaver
                         EditorGUILayout.HelpBox("上端が膝の関節にかかっています。膝を曲げると口ゴムが肌から浮いたり沈んだりするので、0.9 以下か 1.1 以上をおすすめします。", MessageType.Warning);
                     break;
             }
+        }
 
+        /// <summary>透け方（2 層式・引っ張り・伸び・姿勢）と柄。</summary>
+        void DrawSheer(GarmentSettings g)
+        {
+            using (new EditorGUI.DisabledScope(g.IsFakeThighHigh))
+                g.twoLayer = EditorGUILayout.Toggle(
+                    new GUIContent("2 層式（フェイクタイツ）", "厚手の生地の裏に肌色の裏地があり、表から素肌が透けて見えるタイツ。厚みと肌の削除は上のデニール、見た目は「見かけのデニール」に従います"),
+                    g.twoLayer);
+            if (g.twoLayer)
+            {
+                using (new EditorGUI.IndentLevelScope())
+                {
+                    g.apparentDenier = EditorGUILayout.Slider(new GUIContent("見かけのデニール", "表から見た透け感（裏地の肌色がどれだけ見えるか）"),
+                        g.apparentDenier, Denier.MinDenier, 200f);
+                    g.liningFromSkin = EditorGUILayout.Toggle(new GUIContent("裏地の色を肌から取る", "脚の肌テクスチャの平均色を裏地に使います"),
+                        g.liningFromSkin);
+                    using (new EditorGUI.DisabledScope(g.liningFromSkin))
+                        g.liningColor = EditorGUILayout.ColorField("裏地の色", g.liningColor);
+                }
+            }
+            using (new EditorGUI.DisabledScope(!g.IsOpaque || g.twoLayer || g.IsFakeThighHigh || g.denier >= 200f))
+                g.opaqueStretchSheer = EditorGUILayout.Slider(
+                    new GUIContent("引っ張られた所の透け（不透明）",
+                        "不透明のデニールでも、かかと・つま先・曲げた膝の前・お尻など引っ張られる所だけ肌が透けるようにします。0 で透けません。" +
+                        "デニールが高いほど弱く、200D 以上では透けません。肌の写しを使います"),
+                    g.opaqueStretchSheer, 0f, 1f);
+            using (new EditorGUI.DisabledScope(!g.LooksSheer))
+                g.stretchStrength = EditorGUILayout.Slider(
+                    new GUIContent("伸びによる透け", "太もも・ふくらはぎ・膝の前など、布が伸びる部分を透けやすくします（半透明のときだけ）"),
+                    g.stretchStrength, 0f, 2f);
+            // （腕の衣装には使わない: 伸びはボーンの接するところに出る。PoseStretch を参照）
+            using (new EditorGUI.DisabledScope(!g.LooksSheer || g.stretchStrength <= 0 || g.IsArm))
+                g.dynamicStretch = EditorGUILayout.Toggle(
+                    new GUIContent("姿勢に応じて透けを変える", "膝を曲げると膝の前が透け、裏が濃くなります。専用の lilToon カスタムシェーダーを使います（PC 版のみ）"),
+                    g.dynamicStretch);
+            EditorGUILayout.Space(4);
+            DrawPattern(g);
+        }
+
+        /// <summary>体の肌の扱い（縮めるシェイプキー・肌の写し・隠れる肌の削除）。</summary>
+        void DrawSkin(GarmentSettings g)
+        {
             g.turnOffShrinkShapes = EditorGUILayout.Toggle(
                 new GUIContent("シュリンク系シェイプキーを 0 にする", "衣装用に肌を縮めて隠すシェイプキー（形から自動で判定）を、生成前に 0 にします。衣装を脱いだ状態に合わせます（元に戻す操作で戻せます）"),
                 g.turnOffShrinkShapes);
-
             using (new EditorGUI.DisabledScope(g.twoLayer))
                 g.skinLining = EditorGUILayout.Toggle(
                     new GUIContent("肌の写し（半透明）", "半透明でも覆われる肌を削除し、布の内側に同じ見た目の肌（体の UV とマテリアル）を描きます。布と一緒に動くので、どんな姿勢でも肌が布から出ません"),
                     g.skinLining);
-
             g.skinRemoval = (SkinRemoval)EditorGUILayout.Popup(
                 new GUIContent("隠れる肌の削除", "AAO Remove Mesh By Box でタイツに完全に覆われる肌のポリゴンを削除します"),
                 (int)g.skinRemoval, new[] { "自動（不透明か、肌の写しを使うとき）", "常に", "しない" });
-            if (g.skinRemoval != SkinRemoval.Never)
-            {
+            if (g.skinRemoval == SkinRemoval.Never) return;
+            using (new EditorGUI.IndentLevelScope())
                 g.removalMarginCm = EditorGUILayout.Slider(new GUIContent("端からの余裕 (cm)", "布の端からこの距離までの肌は残します"),
                     g.removalMarginCm, 0f, 5f);
-                if (!GarmentInstaller.CanRemoveSkin)
-                    EditorGUILayout.HelpBox("Avatar Optimizer (AAO) が見つからないため、肌の削除は行いません。", MessageType.Warning);
-            }
+            if (!GarmentInstaller.CanRemoveSkin)
+                EditorGUILayout.HelpBox("Avatar Optimizer (AAO) が見つからないため、肌の削除は行いません。", MessageType.Warning);
+        }
 
-            showAdvanced = EditorGUILayout.Foldout(showAdvanced, "詳細設定", true);
-            if (!showAdvanced) return;
-            using (new EditorGUI.IndentLevelScope())
-            {
-                g.clearanceMm = EditorGUILayout.Slider(new GUIContent("肌との隙間 (mm)", "肌と布の内側の距離。小さいと肌が突き抜けやすくなります"), g.clearanceMm, 0.2f, 5f);
-                g.autoThickness = EditorGUILayout.Toggle("厚みをデニールから決める", g.autoThickness);
-                using (new EditorGUI.DisabledScope(g.autoThickness))
-                    g.thicknessMm = EditorGUILayout.Slider("布の厚み (mm)", g.autoThickness ? g.Thickness : g.thicknessMm, 0.05f, 5f);
-                using (new EditorGUI.DisabledScope(g.toes == ToeStyle.FiveToe))
-                    g.toeBridgeMm = EditorGUILayout.Slider(new GUIContent("足指の間を埋める (mm)", "つま先が「まとめ」「足袋型」のとき、この約 2 倍より狭い指の隙間を布でつなぎます"), g.toeBridgeMm, 0.5f, 8f);
-                g.jointExtraMm = EditorGUILayout.Slider(new GUIContent("関節の余裕 (mm)", "膝・脚の付け根など、ボーンのウェイトが混ざる所で布をさらに離す距離。曲げたときの突き抜けを防ぎます"), g.jointExtraMm, 0f, 5f);
-                g.density = EditorGUILayout.Slider(new GUIContent("足先のポリゴン密度", "足の指の付け根より前（SDF で作る部分）の、元のポリゴン数に対する倍率。それ以外はボディと同じ構成です"), g.density, 0.5f, 4f);
-                g.voxelMm = EditorGUILayout.Slider(new GUIContent("計算の細かさ (mm)", "小さいほど精密で遅くなります"), g.voxelMm, 0.4f, 2f);
-            }
+        void DrawAdvanced(GarmentSettings g)
+        {
+            g.clearanceMm = EditorGUILayout.Slider(new GUIContent("肌との隙間 (mm)", "肌と布の内側の距離。小さいと肌が突き抜けやすくなります"), g.clearanceMm, 0.2f, 5f);
+            g.autoThickness = EditorGUILayout.Toggle("厚みをデニールから決める", g.autoThickness);
+            using (new EditorGUI.DisabledScope(g.autoThickness))
+                g.thicknessMm = EditorGUILayout.Slider("布の厚み (mm)", g.autoThickness ? g.Thickness : g.thicknessMm, 0.05f, 5f);
+            using (new EditorGUI.DisabledScope(g.toes == ToeStyle.FiveToe))
+                g.toeBridgeMm = EditorGUILayout.Slider(new GUIContent("足指の間を埋める (mm)", "つま先が「まとめ」「足袋型」のとき、この約 2 倍より狭い指の隙間を布でつなぎます"), g.toeBridgeMm, 0.5f, 8f);
+            g.jointExtraMm = EditorGUILayout.Slider(new GUIContent("関節の余裕 (mm)", "膝・脚の付け根など、ボーンのウェイトが混ざる所で布をさらに離す距離。曲げたときの突き抜けを防ぎます"), g.jointExtraMm, 0f, 5f);
+            g.density = EditorGUILayout.Slider(new GUIContent("足先のポリゴン密度", "足の指の付け根より前（SDF で作る部分）の、元のポリゴン数に対する倍率。それ以外はボディと同じ構成です"), g.density, 0.5f, 4f);
+            g.voxelMm = EditorGUILayout.Slider(new GUIContent("計算の細かさ (mm)", "小さいほど精密で遅くなります"), g.voxelMm, 0.4f, 2f);
         }
 
         /// <summary>
@@ -382,17 +488,17 @@ namespace LegWeaver
         /// <summary>本物のタイツで編み方の違う部分（それぞれ専用のマテリアルで描く）。</summary>
         void DrawBuild(GarmentSettings g)
         {
-            showBuild = EditorGUILayout.Foldout(showBuild, "実物の構造", true);
-            if (!showBuild) return;
-            using (new EditorGUI.IndentLevelScope())
             {
-                g.waistband = EditorGUILayout.Toggle(new GUIContent("ウエストバンド", "上端（サイハイは上端の帯）を濃く編んだ帯にします"), g.waistband);
+                // （ガーター・レッグラップは帯そのものなので、上端の帯は作らない）
+                using (new EditorGUI.DisabledScope(g.IsAccessory))
+                    g.waistband = EditorGUILayout.Toggle(new GUIContent("ウエストバンド", "上端（サイハイは上端の帯）を濃く編んだ帯にします"), g.waistband);
                 using (new EditorGUI.DisabledScope(g.type != GarmentType.Tights))
                 {
                     g.pantyPart = EditorGUILayout.Toggle(new GUIContent("パンティ部", "ウエストから太ももの付け根までを少し濃くします（タイツのみ）"), g.pantyPart);
                     g.runGuard = EditorGUILayout.Toggle(new GUIContent("ランガード", "パンティ部の下端に濃い帯を付けます（タイツのみ）"), g.runGuard);
                 }
-                using (new EditorGUI.DisabledScope(g.type == GarmentType.Spats))
+                // つま先・かかとの補強はタイツとサイハイだけ（ほかの種類は足先かかとを作らないか、補強を付けない）
+                using (new EditorGUI.DisabledScope(g.type is not (GarmentType.Tights or GarmentType.ThighHigh)))
                 {
                     g.toeReinforcement = (ToeReinforcement)EditorGUILayout.Popup(
                         new GUIContent("つま先の補強", "補強: つま先を濃く編む。サンダル: ほとんど目立たない補強。ヌード: 補強なし"),
@@ -472,7 +578,6 @@ namespace LegWeaver
 
         void DrawBlender()
         {
-            EditorGUILayout.LabelField("Blender", EditorStyles.boldLabel);
             using (new EditorGUILayout.HorizontalScope())
             {
                 var path = EditorGUILayout.TextField("blender.exe", BlenderRunner.BlenderPath);
@@ -520,30 +625,36 @@ namespace LegWeaver
 
         void DrawRun(bool busy)
         {
-            if (busy)
+            EditorGUILayout.Space(4);
+            using (new EditorGUILayout.VerticalScope(new GUIStyle { padding = new RectOffset(8, 8, 0, 0) }))
             {
-                var elapsed = EditorApplication.timeSinceStartup - _startTime;
-                EditorGUILayout.HelpBox($"Blender で生成中… {elapsed:0} 秒（{_runner.Timeout:0} 秒で打ち切り）\n{_runner.LastLine}", MessageType.None);
-                if (GUILayout.Button("キャンセル")) Cancel();
-            }
-            else
-            {
-                var needsBlender = settings.type != GarmentType.Wrap;
-                using (new EditorGUI.DisabledScope(avatar == null || needsBlender && (!File.Exists(BlenderRunner.BlenderPath) ||
-                                                   BlenderSupport.Check(BlenderRunner.BlenderPath).verdict == BlenderSupport.Verdict.Blocked)))
-                    if (GUILayout.Button("生成", GUILayout.Height(32)))
-                        StartGenerate();
-            }
-            if (!string.IsNullOrEmpty(_status)) EditorGUILayout.HelpBox(_status, MessageType.None);
-            if (_runner == null) return;
-            showLog = EditorGUILayout.Foldout(showLog, "Blender のログ", true);
-            if (showLog)
-            {
-                _logScroll = EditorGUILayout.BeginScrollView(_logScroll, GUILayout.Height(160));
-                // （その末尾: テキストエリアに出せる量には限りがある）
-                var log = _runner.Log.ToString();
-                EditorGUILayout.TextArea(log.Length > MaxLogShown ? log.Substring(log.Length - MaxLogShown) : log);
-                EditorGUILayout.EndScrollView();
+                if (busy)
+                {
+                    var elapsed = EditorApplication.timeSinceStartup - _startTime;
+                    WindowStyle.Progress((float)(elapsed / Math.Max(_runner.Timeout, 1.0)),
+                        $"Blender で生成中… {elapsed:0} 秒（{_runner.Timeout:0} 秒で打ち切り）");
+                    if (!string.IsNullOrEmpty(_runner.LastLine)) GUILayout.Label(_runner.LastLine, WindowStyle.Caption);
+                    if (GUILayout.Button("キャンセル", GUILayout.Height(24))) Cancel();
+                }
+                else
+                {
+                    var needsBlender = settings.type != GarmentType.Wrap;
+                    using (new EditorGUI.DisabledScope(avatar == null || needsBlender && (!File.Exists(BlenderRunner.BlenderPath) ||
+                                                       BlenderSupport.Check(BlenderRunner.BlenderPath).verdict == BlenderSupport.Verdict.Blocked)))
+                        if (WindowStyle.PrimaryButton("生成"))
+                            StartGenerate();
+                }
+                if (!string.IsNullOrEmpty(_status)) EditorGUILayout.HelpBox(_status, MessageType.None);
+                if (_runner == null) return;
+                showLog = EditorGUILayout.Foldout(showLog, "Blender のログ", true);
+                if (showLog)
+                {
+                    _logScroll = EditorGUILayout.BeginScrollView(_logScroll, GUILayout.Height(160));
+                    // （その末尾: テキストエリアに出せる量には限りがある）
+                    var log = _runner.Log.ToString();
+                    EditorGUILayout.TextArea(log.Length > MaxLogShown ? log.Substring(log.Length - MaxLogShown) : log);
+                    EditorGUILayout.EndScrollView();
+                }
             }
         }
 

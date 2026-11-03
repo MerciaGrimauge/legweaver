@@ -18,6 +18,7 @@ from lw_common import (
     cut,
     face_side,
     foot_frame,
+    log,
     new_object,
     normalize,
     remove_loose,
@@ -25,6 +26,11 @@ from lw_common import (
 )
 
 CAP_BASE = 0.70  # 親指のサックの口の、足首から前への到達に対する割合の最も前（親指の付け根のあたり）
+CAP_BEHIND_WEB = 0.04  # 親指と人差し指の股が分かるとき、サックの口を股より足首から前への到達のこの割合だけ後ろに置く
+CAP_WEB_DEPTH = (
+    0.10  # 股と認めるのは、親指の先から足首から前への到達のこの割合以上後ろにあるとき（指の分かれていない足の
+)
+#                      低い面の粗さを股と取り違えない）
 
 
 class ToeZone:
@@ -359,6 +365,61 @@ def big_toe_splits(
     return out
 
 
+def toe_gap(
+    co: np.ndarray,
+    nrm: np.ndarray,
+    ankle: np.ndarray,
+    fwd: np.ndarray,
+    up: np.ndarray,
+    med: np.ndarray,
+    ahead: float,
+    mine: Callable[[np.ndarray], np.ndarray],
+) -> float | None:
+    """
+    親指と人差し指の間の隙間の中心の、内側への座標: この足の足首より下で、足首から前への到達の 85% より前の、上（足の甲の
+    側）を向いた体の点を内外に並べ、内側の半分にある点の無いいちばん広い隙間の真ん中（幅の 3% より狭ければ、指が付いて
+    いるとして None。足の裏の側は指の先までつながった作りが多いので見ない）。
+    指の塊の平均の中間は、幅の広い親指の縁に乗ることがあるので使わない。
+    """
+    low = co[mine(co) & (((co - ankle) @ up) < 0) & (((co - ankle) @ fwd) / ahead > 0.85) & ((nrm @ up) > 0.3)]
+    if len(low) < 10:
+        return None
+    m = np.sort((low - ankle) @ med)
+    gaps = np.diff(m)
+    inner = m[:-1] > (m[0] + m[-1]) * 0.5
+    if not inner.any():
+        return None
+    i = int(np.argmax(np.where(inner, gaps, -1.0)))
+    return float(m[i] + m[i + 1]) * 0.5 if gaps[i] > (m[-1] - m[0]) * 0.03 else None
+
+
+def toe_web(
+    co: np.ndarray,
+    nrm: np.ndarray,
+    tris: np.ndarray,
+    ankle: np.ndarray,
+    fwd: np.ndarray,
+    up: np.ndarray,
+    med: np.ndarray,
+    ahead: float,
+    mid: float,
+    mine: Callable[[np.ndarray], np.ndarray],
+) -> float | None:
+    """
+    親指と人差し指の股の、足首から前への到達に対する割合: 2 本の指の間の中心線（内側への座標が `mid`）を横切る、足首より下の
+    この足の、上（足の甲の側）を向いた体の三角形のうち、最も前の頂点。股より前は指の間に隙間があり、体の面がこの線を横切らない
+    （足の裏の側は指の先までつながった作りが多いので、上を向いた面だけを見る）。
+    """
+    p = co[tris]
+    c = p.mean(axis=1)
+    keep = mine(c) & (((c - ankle) @ up) < 0) & ((nrm[tris].mean(axis=1) @ up) > 0.3)
+    m = (p[keep] - ankle) @ med
+    cross = (m.min(axis=1) <= mid) & (m.max(axis=1) >= mid)
+    if not cross.any():
+        return None
+    return float((((p[keep][cross] - ankle) @ fwd).max())) / ahead
+
+
 def toecap_cut(
     co: np.ndarray,
     groups: tuple[np.ndarray, np.ndarray],
@@ -366,6 +427,8 @@ def toecap_cut(
     up: np.ndarray,
     lateral: np.ndarray,
     hip_mid: np.ndarray,
+    tris: np.ndarray,
+    nrm: np.ndarray,
 ) -> tuple[list[Field], list[np.ndarray]]:
     """
     親指だけを覆うサック: 足ごとに、足首より下・親指の付け根より前で、ほかの指より親指の点に近い所を残す（後の
@@ -383,6 +446,10 @@ def toecap_cut(
         ankle, fwd, ahead, _ = frame
         med = -side * lateral
         med = normalize(med - fwd * (med @ fwd) - up * (med @ up))
+
+        def on_side(c, side=side):
+            return np.array([face_side(q, hip_mid, lateral) == side for q in c], dtype=bool)
+
         mine = np.zeros(len(pts), dtype=bool)
         if len(pts):
             mine = np.array([face_side(p, hip_mid, lateral) == side for p in pts], dtype=bool)
@@ -391,12 +458,22 @@ def toecap_cut(
         k = ahead * 0.04
         if len(names) >= 2:
             inward = {n: float(np.mean((pts[mine & (labels == n)] - ankle) @ med)) for n in names}
-            big_n = max(names, key=lambda n: inward[n])
+            order = sorted(names, key=lambda n: -inward[n])
+            big_n = order[0]
             big_pts, rest = pts[mine & (labels == big_n)], pts[mine & (labels != big_n)]
-            # 付け根: 親指の塊の最も後ろ。ただし足首より前の長さの 70% より前には置かない（形で分けた塊は指が 1 本ずつに
-            # 分かれる所より先だけ）。骨のウェイトの塊は付け根の奥まで届くので、指の付け根の平面より少し前に限る
-            base_at = float(np.min((big_pts - ankle) @ fwd)) / ahead
-            base = ankle + fwd * ahead * float(np.clip(base_at, TOE_BASE + 0.05, CAP_BASE))
+            big_tip = float(np.max((big_pts - ankle) @ fwd)) / ahead
+            # 付け根: 親指と人差し指の股が分かれば、その少し後ろ（指の骨のウェイトの塊は付け根より奥の足の甲まで届き、
+            # Toes の骨も付け根に無いことがある）。指どうしが付いていて股が無い（親指の先の近くまで面が中心線を横切る）
+            # なら、親指の塊の最も後ろを、指の付け根の平面より少し前から足首より前の長さの 70% までに収めた所
+            # （形で分けた塊は指が 1 本ずつに分かれる所より先だけ）
+            gap = toe_gap(co, nrm, ankle, fwd, up, med, ahead, on_side)
+            web = toe_web(co, nrm, tris, ankle, fwd, up, med, ahead, gap, on_side) if gap is not None else None
+            if web is not None and web < big_tip - CAP_WEB_DEPTH:
+                base_at = float(np.clip(web - CAP_BEHIND_WEB, TOE_BASE + 0.05, big_tip - 0.05))
+            else:
+                base_at = float(np.clip(float(np.min((big_pts - ankle) @ fwd)) / ahead, TOE_BASE + 0.05, CAP_BASE))
+            log(f"toecap side {side}: toe groups {len(names)}, web {web}, mouth {base_at:.3f} of the way ahead")
+            base = ankle + fwd * ahead * base_at
             big_tree, rest_tree = BigToeSplit.kdtree(big_pts), BigToeSplit.kdtree(rest)
 
             def fn(p, base=base, fwd=fwd, big_tree=big_tree, rest_tree=rest_tree, k=k, ankle=ankle):
@@ -416,7 +493,15 @@ def toecap_cut(
                 continue
             m = (low - ankle) @ med
             split = float(m.max() - (m.max() - m.min()) * 0.35)
-            base = ankle + fwd * ahead * CAP_BASE
+            base_at = CAP_BASE
+            # 指が離れている足（股が分かる足）では、親指と人差し指の間の隙間で分け、股の少し後ろに口を置く
+            gap = toe_gap(co, nrm, ankle, fwd, up, med, ahead, on_side)
+            web = toe_web(co, nrm, tris, ankle, fwd, up, med, ahead, gap, on_side) if gap is not None else None
+            if web is not None and web < 1.0 - CAP_WEB_DEPTH:
+                split = gap
+                base_at = float(np.clip(web - CAP_BEHIND_WEB, TOE_BASE + 0.05, 0.9))
+            log(f"toecap side {side}: no toe groups, split {split:.4f}, mouth {base_at:.3f} of the way ahead")
+            base = ankle + fwd * ahead * base_at
 
             def fn(p, base=base, fwd=fwd, ankle=ankle, med=med, split=split, k=k):
                 cut = smooth_min(float((p - base) @ fwd), float((p - ankle) @ med) - split, k)
